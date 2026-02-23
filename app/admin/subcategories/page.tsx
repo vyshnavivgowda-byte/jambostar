@@ -19,7 +19,7 @@ interface Subcategory {
     category_id: string;
     categories: {
         name: string;
-    }[];  
+    }[];
 }
 
 export default function SubcategoriesPage() {
@@ -175,13 +175,19 @@ export default function SubcategoriesPage() {
     // ADVANCED FILTERING
     const filteredSubs = useMemo(() => {
         return subcategories.filter(sub => {
-            const matchesSearch = sub.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                sub.categories?.name.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesCategory = selectedFilterCategory === "all" || sub.category_id === selectedFilterCategory;
+            const categoryName = sub.categories?.[0]?.name || "";
+
+            const matchesSearch =
+                sub.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                categoryName.toLowerCase().includes(searchTerm.toLowerCase());
+
+            const matchesCategory =
+                selectedFilterCategory === "all" ||
+                sub.category_id === selectedFilterCategory;
+
             return matchesSearch && matchesCategory;
         });
     }, [subcategories, searchTerm, selectedFilterCategory]);
-
     return (
         <div className="min-h-screen bg-[#fffafa] p-4 md:p-10">
 
@@ -270,8 +276,8 @@ export default function SubcategoriesPage() {
 
                                     {/* Category Tag */}
                                     <span className="text-xs text-red-500 font-semibold uppercase tracking-wider">
-                                        {sub.categories?.name}
-                                    </span>
+                                        {sub.categories?.[0]?.name}                    
+                                                        </span>
 
                                     <div className="h-1 w-8 bg-red-500 mt-1 rounded-full group-hover:w-16 transition-all duration-500"></div>
                                 </div>

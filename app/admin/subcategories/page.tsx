@@ -19,7 +19,7 @@ interface Subcategory {
     category_id: string;
     categories: {
         name: string;
-    };
+    }[];  
 }
 
 export default function SubcategoriesPage() {

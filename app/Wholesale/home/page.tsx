@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Image from "next/image";
 import Link from "next/link";
-import ProductCard from "@/components/ProductCard";
+import ProductCard from "@/Components/ProductCard";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay, Pagination, Navigation, EffectFade, FreeMode } from "swiper/modules";
 import {

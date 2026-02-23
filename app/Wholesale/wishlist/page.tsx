@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import ProductCard from "@/components/ProductCard"; // Adjust path as needed
+import ProductCard from "@/Components/ProductCard";
+// import ProductCard from "@/components/ProductCard"; // Adjust path as needed
 import { Heart, ShoppingBag, Loader2 } from "lucide-react";
 import Link from "next/link";
 

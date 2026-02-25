@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    turbo: false,   // 👈 ADD THIS
+  },
   images: {
     remotePatterns: [
       {
@@ -10,9 +13,9 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'damsijnioqexdsozebri.supabase.co', // Your specific Supabase ID
+        hostname: 'damsijnioqexdsozebri.supabase.co',
         port: '',
-        pathname: '/storage/v1/object/public/**', // Limits it to your public buckets
+        pathname: '/storage/v1/object/public/**',
       },
     ],
   },

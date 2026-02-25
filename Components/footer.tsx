@@ -4,95 +4,98 @@ import {
   Facebook, 
   Instagram, 
   Twitter, 
-  Mail, 
-  Phone, 
-  Send,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  MapPin,
+  Clock
 } from "lucide-react";
 
 export default function Footer() {
   return (
-    <footer className="relative bg-[#0a0a0b] text-slate-400 pt-20 pb-6 overflow-hidden">
-      {/* Subtle Background Glows */}
-      <div className="absolute top-0 left-1/4 w-64 h-64 bg-red-600/5 blur-[100px] rounded-full" />
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-600/5 blur-[120px] rounded-full" />
+    <footer className="relative bg-[#0a0a0b] text-slate-400 pt-20 pb-8 overflow-hidden border-t border-white/5">
+      {/* Subtle Background Glows for Depth */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-600/5 blur-[120px] rounded-full" />
+      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-slate-500/5 blur-[150px] rounded-full" />
 
       <div className="max-w-7xl mx-auto px-6 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-16 mb-20">
           
-          {/* Column 1: Brand Identity */}
-          <div className="lg:col-span-4 space-y-6">
-            <Link href="/" className="inline-block">
+          {/* Column 1: Brand Identity & Small Logo */}
+          <div className="lg:col-span-5 space-y-8">
+            <Link href="/" className="inline-block group">
               <Image 
-                src="/logoremovebg.png" // Using your specific path
+                src="/logoremovebg.png" 
                 alt="Jumbostar Logo" 
-                width={140} 
-                height={45} 
-                className="object-contain"
+                width={100} // Reduced logo size for premium feel
+                height={32} 
+                className="object-contain brightness-110 opacity-90 group-hover:opacity-100 transition-all duration-500"
                 priority
               />
             </Link>
-            <p className="text-sm leading-relaxed text-slate-400 max-w-sm">
-              Premium wholesale and retail solutions. Delivering excellence in every package since 2024. Your trusted partner for quality daily essentials.
+            <p className="text-sm leading-relaxed text-slate-500 max-w-md font-medium">
+              Jumbostar stands at the intersection of quality and reliability. We provide 
+              seamless wholesale and retail infrastructure for daily essentials, 
+              empowering businesses across the region since 2024.
             </p>
-            <div className="flex gap-3">
+            
+            {/* Trust Indicators (Replacing the Input Box) */}
+            <div className="flex flex-wrap gap-6 pt-2">
+              <div className="flex items-center gap-2 text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">
+                <ShieldCheck size={16} className="text-red-600" />
+                Verified Partner
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">
+                <Clock size={16} className="text-red-600" />
+                Quick Verification
+              </div>
+            </div>
+          </div>
+
+          {/* Column 2: Platform Links */}
+          <div className="lg:col-span-2 space-y-6">
+            <h4 className="text-white text-[11px] font-black uppercase tracking-[0.3em]">Platform</h4>
+            <ul className="space-y-4 text-[13px] font-bold uppercase tracking-wider">
+              <li><Link href="/categories" className="hover:text-red-500 transition-colors">Categories</Link></li>
+              <li><Link href="/products" className="hover:text-red-500 transition-colors">Product Gallery</Link></li>
+              <li><Link href="/offers" className="hover:text-red-500 transition-colors">Bulk Deals</Link></li>
+            </ul>
+          </div>
+
+          {/* Column 3: Legal & Support */}
+          <div className="lg:col-span-2 space-y-6">
+            <h4 className="text-white text-[11px] font-black uppercase tracking-[0.3em]">Service</h4>
+            <ul className="space-y-4 text-[13px] font-bold uppercase tracking-wider">
+              <li><Link href="/privacy" className="hover:text-red-500 transition-colors">Privacy</Link></li>
+              <li><Link href="/terms" className="hover:text-red-500 transition-colors">Terms of Trade</Link></li>
+              <li><Link href="/contact" className="hover:text-red-500 transition-colors">Contact</Link></li>
+            </ul>
+          </div>
+
+          {/* Column 4: Social Presence */}
+          <div className="lg:col-span-3 space-y-6">
+            <h4 className="text-white text-[11px] font-black uppercase tracking-[0.3em]">Connect</h4>
+            <div className="flex gap-4 mb-6">
               {[Facebook, Instagram, Twitter].map((Icon, i) => (
                 <Link 
                   key={i} 
                   href="#" 
-                  className="h-9 w-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-600 hover:border-red-600 hover:-translate-y-1 transition-all duration-300 text-white"
+                  className="h-11 w-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-600 hover:border-red-600 hover:-translate-y-1 transition-all duration-300 text-white"
                 >
-                  <Icon size={16} />
+                  <Icon size={18} />
                 </Link>
               ))}
             </div>
-          </div>
-
-          {/* Column 2: Quick Links */}
-          <div className="lg:col-span-2 space-y-6">
-            <h4 className="text-white text-xs font-bold uppercase tracking-[0.2em]">Platform</h4>
-            <ul className="space-y-3 text-sm">
-              <li><Link href="/categories" className="hover:text-red-500 transition-colors">Categories</Link></li>
-              <li><Link href="/products" className="hover:text-red-500 transition-colors">All Products</Link></li>
-              <li><Link href="/offers" className="hover:text-red-500 transition-colors">Bulk Orders</Link></li>
-            </ul>
-          </div>
-
-          {/* Column 3: Support */}
-          <div className="lg:col-span-2 space-y-6">
-            <h4 className="text-white text-xs font-bold uppercase tracking-[0.2em]">Service</h4>
-            <ul className="space-y-3 text-sm">
-              <li><Link href="/terms" className="hover:text-red-500 transition-colors">Privacy Policy</Link></li>
-              <li><Link href="/shipping" className="hover:text-red-500 transition-colors">Shipping Info</Link></li>
-              <li><Link href="/contact" className="hover:text-red-500 transition-colors">Contact Us</Link></li>
-            </ul>
-          </div>
-
-          {/* Column 4: Newsletter/Contact */}
-          <div className="lg:col-span-4 space-y-6">
-            <h4 className="text-white text-xs font-bold uppercase tracking-[0.2em]">Join Our Network</h4>
-            <div className="relative group">
-              <input 
-                type="email" 
-                placeholder="Business email..." 
-                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:border-red-600 transition-all text-sm text-white"
-              />
-              <button className="absolute right-1.5 top-1.5 bottom-1.5 bg-red-600 hover:bg-red-700 text-white px-4 rounded-lg transition-all">
-                <Send size={14} />
-              </button>
-            </div>
-            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-              <ShieldCheck size={14} className="text-green-500" />
-              Verified Wholesale Provider
+            <div className="flex items-start gap-3 text-xs text-slate-500">
+              <MapPin size={14} className="mt-0.5 text-red-600" />
+              <span className="leading-relaxed font-medium">Headquarters: Industrial Hub, <br /> Karnataka, India</span>
             </div>
           </div>
         </div>
 
-        {/* Final Bottom Bar */}
-        <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="text-[11px] tracking-wider text-slate-500 uppercase font-medium">
-            © 2024 Jumbostar Retail. All rights reserved.
+        {/* Bottom Bar: Copyright & Credits */}
+        <div className="pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="text-[10px] tracking-[0.2em] text-slate-600 uppercase font-black">
+            © 2024 Jumbostar Wholesale. All rights reserved.
           </div>
 
           {/* Developer Credit - Rakvih */}
@@ -101,11 +104,13 @@ export default function Footer() {
               href="https://rakvih.in" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-[11px] tracking-wide text-slate-500 hover:text-white transition-colors"
+              className="flex items-center gap-3 text-[10px] tracking-[0.1em] text-slate-500 hover:text-white transition-colors"
             >
-              <span>Designed & Developed by</span>
-              <span className="font-bold text-slate-300 group-hover:text-red-500 transition-colors uppercase">Rakvih</span>
-              <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500" />
+              <span className="font-medium uppercase">Engineering by</span>
+              <span className="font-black text-slate-300 group-hover:text-red-600 transition-colors uppercase text-xs">Rakvih</span>
+              <div className="p-1.5 bg-white/5 rounded-lg group-hover:bg-red-600 transition-colors">
+                <ExternalLink size={10} className="text-white" />
+              </div>
             </a>
           </div>
         </div>

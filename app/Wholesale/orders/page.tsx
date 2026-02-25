@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
-import { CheckCircle2, Loader2, Wallet } from "lucide-react";
+import { CheckCircle2, Loader2, Wallet, ArrowLeft, History, Package } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
 const loadRazorpay = () => {
@@ -33,7 +33,6 @@ export default function WholesaleOrders() {
             if (!userStr) return router.push("/");
             const user = JSON.parse(userStr);
 
-            // CLEAN FETCH: Only select, no update here!
             const { data, error } = await supabase
                 .from("orders")
                 .select("*")
@@ -43,7 +42,6 @@ export default function WholesaleOrders() {
             if (error) throw error;
             setOrders(data || []);
         } catch (error: any) {
-            console.error("Fetch Error:", error.message);
             toast.error("Failed to load orders");
         } finally {
             setLoading(false);
@@ -63,7 +61,7 @@ export default function WholesaleOrders() {
                 : fullAmount;
 
             if (balanceToPay <= 0) {
-                toast.error("This order is already settled.");
+                toast.error("Order is already settled.");
                 setProcessingId(null);
                 return;
             }
@@ -75,7 +73,6 @@ export default function WholesaleOrders() {
                 name: "Jumbo Star Wholesale",
                 description: `Settling Order ${order.order_id_custom}`,
                 handler: async function (response: any) {
-                    // This is where the UPDATE belongs
                     const { error } = await supabase
                         .from("orders")
                         .update({
@@ -89,7 +86,7 @@ export default function WholesaleOrders() {
                         .eq('id', order.id);
 
                     if (error) {
-                        toast.error("Database update failed. Please contact support.");
+                        toast.error("Update failed. Contact support.");
                     } else {
                         toast.success("Order Fully Settled!");
                         fetchOrders();
@@ -110,123 +107,134 @@ export default function WholesaleOrders() {
         }
     };
 
-    if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-red-600" /></div>;
-
+    if (loading) return (
+        <div className="h-screen flex flex-col items-center justify-center bg-white">
+            <Loader2 className="animate-spin text-red-600 mb-4" size={32} />
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verifying Ledger...</p>
+        </div>
+    );
 
     return (
-        <div className="min-h-screen bg-[#F9FAFB] pb-20 font-sans">
-            <Toaster position="top-right" />
+        <div className="min-h-screen bg-[#F8FAFC] pb-20">
+            <Toaster position="bottom-center" />
             <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
-            <div className="max-w-6xl mx-auto px-4 pt-10">
-                <div className="mb-10">
-                    <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Purchase Ledger</h1>
-                    <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.2em] mt-1">Real-time Wholesale Settlements</p>
+            {/* Header Area */}
+            <div className="bg-white border-b border-slate-100 pt-10 pb-8 px-4">
+                <div className="max-w-5xl mx-auto">
+                    <button 
+                        onClick={() => router.back()} 
+                        className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6"
+                    >
+                        <ArrowLeft size={14} /> Back to sourcing
+                    </button>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h1 className="text-3xl md:text-5xl font-black text-slate-900 uppercase tracking-tighter">Purchase Ledger</h1>
+                            <div className="flex items-center gap-2 mt-2">
+                                <History size={14} className="text-red-600" />
+                                <p className="text-slate-500 font-bold text-[9px] uppercase tracking-[0.1em]">Transaction Records</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+            </div>
 
-                <div className="space-y-8">
-                    {orders.map((order) => {
-                        // 1. Calculate the logic variables first
-                        const displayTotal = Number(order.total_payable_amount || order.total_amount);
-                        const displayPaid = Number(order.amount_paid_now || 0);
+            <div className="max-w-5xl mx-auto px-4 mt-8 space-y-6">
+                {orders.length > 0 ? orders.map((order) => {
+                    const displayTotal = Number(order.total_payable_amount || order.total_amount);
+                    const displayPaid = Number(order.amount_paid_now || 0);
+                    let displayBalance = order.remaining_balance !== null ? Number(order.remaining_balance) : (order.payment_status === 'paid' ? 0 : displayTotal);
+                    const isPaid = displayBalance <= 0 || order.payment_status === 'paid';
 
-                        let displayBalance = 0;
-                        if (order.remaining_balance !== null) {
-                            displayBalance = Number(order.remaining_balance);
-                        } else {
-                            displayBalance = order.payment_status === 'paid' ? 0 : displayTotal;
-                        }
+                    return (
+                        <div key={order.id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+                            {/* Top Info Bar */}
+                            <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="bg-slate-900 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase">
+                                        {order.order_id_custom}
+                                    </span>
+                                    <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg border ${displayBalance > 0 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
+                                        {displayBalance > 0 ? 'Credit/Partial' : 'Paid in Full'}
+                                    </span>
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                    {new Date(order.created_at).toLocaleDateString()}
+                                </span>
+                            </div>
 
-                        const isPaid = displayBalance <= 0 || order.payment_status === 'paid';
-
-                        // 2. Return the JSX using the correct variable names
-                        return (
-                            <div key={order.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                                <div className="p-8">
-                                    <div className="flex flex-col lg:flex-row justify-between gap-8">
-                                        <div className="flex-1 space-y-6">
-                                            <div className="flex items-center gap-3">
-                                                <span className="bg-slate-900 text-white px-4 py-1.5 rounded-xl text-xs font-black uppercase">
-                                                    {order.order_id_custom}
-                                                </span>
-                                                {/* FIX: Changed 'balance' to 'displayBalance' */}
-                                                <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-xl border ${displayBalance > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                                                    {displayBalance > 0 ? 'Partial Payment' : 'Fully Settled'}
-                                                </span>
-                                            </div>
-
-                                            {/* Products Grid */}
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {order.items?.map((item: any, idx: number) => (
-                                                    <div key={idx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                                                        <div className="h-10 w-10 bg-white rounded-lg flex-shrink-0 overflow-hidden border border-slate-200 p-1">
-                                                            <img src={item.image || 'https://via.placeholder.com/100'} alt="" className="w-full h-full object-contain" />
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <p className="text-[10px] font-black text-slate-800 truncate uppercase leading-tight">{item.product_name || 'Product'}</p>
-                                                            <p className="text-[9px] font-bold text-slate-500 uppercase">Qty: {item.quantity} {item.unit || ''}</p>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase">Order Date</p>
-                                                    <p className="text-xs font-bold text-slate-700">{new Date(order.created_at).toLocaleDateString()}</p>
+                            <div className="p-6 md:p-8 flex flex-col lg:flex-row gap-8">
+                                {/* Order Items Section */}
+                                <div className="flex-1 space-y-6">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {order.items?.map((item: any, idx: number) => (
+                                            <div key={idx} className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                                                <div className="h-12 w-12 bg-slate-50 rounded-xl flex-shrink-0 overflow-hidden border border-slate-100 p-1">
+                                                    <img src={item.image || 'https://via.placeholder.com/100'} alt="" className="w-full h-full object-contain" />
                                                 </div>
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase">Shipping To</p>
-                                                    <p className="text-xs font-bold text-slate-700 truncate max-w-xs">{order.address_snapshot}</p>
+                                                <div className="min-w-0">
+                                                    <p className="text-[10px] font-black text-slate-800 truncate uppercase leading-tight">{item.product_name}</p>
+                                                    <p className="text-[9px] font-bold text-red-600 uppercase mt-0.5">{item.quantity} {item.unit}</p>
                                                 </div>
                                             </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Address Snapshot - Hidden on very small mobile if too long, or truncated */}
+                                    <div className="pt-4 border-t border-slate-50">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Delivery Destination</p>
+                                        <p className="text-xs font-bold text-slate-600 leading-relaxed">{order.address_snapshot}</p>
+                                    </div>
+                                </div>
+
+                                {/* Financial Summary - This part pops on mobile */}
+                                <div className="lg:w-72 bg-slate-900 rounded-[1.5rem] md:rounded-[2rem] p-6 text-white shadow-xl">
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center opacity-60">
+                                            <span className="text-[9px] font-black uppercase tracking-widest">Total Invoice</span>
+                                            <span className="text-xs font-bold">₹{displayTotal.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-emerald-400">
+                                            <span className="text-[9px] font-black uppercase tracking-widest">Collected</span>
+                                            <span className="text-xs font-bold">₹{displayPaid.toLocaleString()}</span>
+                                        </div>
+                                        
+                                        <div className="h-px bg-white/10" />
+
+                                        <div className="py-2">
+                                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40 mb-1 text-center">Outstanding Balance</p>
+                                            <p className={`text-3xl font-black text-center tracking-tighter ${displayBalance > 0 ? 'text-red-500' : 'text-emerald-400'}`}>
+                                                ₹{displayBalance.toLocaleString()}
+                                            </p>
                                         </div>
 
-                                        {/* Right Side Math */}
-                                        <div className="lg:w-80 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex flex-col justify-center">
-                                            <div className="space-y-3">
-                                                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                                                    <span>Total Value</span>
-                                                    {/* FIX: Changed 'total' to 'displayTotal' */}
-                                                    <span>₹{displayTotal.toLocaleString()}</span>
-                                                </div>
-                                                <div className="flex justify-between text-[10px] font-bold uppercase text-emerald-600">
-                                                    <span>Already Paid</span>
-                                                    {/* FIX: Changed 'paid' to 'displayPaid' */}
-                                                    <span>₹{displayPaid.toLocaleString()}</span>
-                                                </div>
-                                                <div className="h-px bg-slate-200" />
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-[10px] font-black uppercase text-slate-900">Balance</span>
-                                                    {/* FIX: Changed 'balance' to 'displayBalance' */}
-                                                    <span className={`text-xl font-black ${displayBalance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                                        ₹{displayBalance.toLocaleString()}
-                                                    </span>
-                                                </div>
-
-                                                {!isPaid ? (
-                                                    <button
-                                                        onClick={() => handleBalancePayment(order)}
-                                                        disabled={processingId === order.id}
-                                                        className="w-full mt-4 bg-red-600 hover:bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-                                                    >
-                                                        {processingId === order.id ? <Loader2 className="animate-spin" size={16} /> : <Wallet size={16} />}
-                                                        Clear Balance
-                                                    </button>
-                                                ) : (
-                                                    <div className="mt-4 flex items-center justify-center gap-2 py-3 bg-emerald-100 text-emerald-700 rounded-2xl border border-emerald-200">
-                                                        <CheckCircle2 size={16} />
-                                                        <span className="text-[10px] font-black uppercase">Settled</span>
-                                                    </div>
-                                                )}
+                                        {!isPaid ? (
+                                            <button
+                                                onClick={() => handleBalancePayment(order)}
+                                                disabled={processingId === order.id}
+                                                className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/20"
+                                            >
+                                                {processingId === order.id ? <Loader2 className="animate-spin" size={16} /> : <Wallet size={16} />}
+                                                Settle Now
+                                            </button>
+                                        ) : (
+                                            <div className="flex items-center justify-center gap-2 py-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+                                                <CheckCircle2 size={14} />
+                                                <span className="text-[9px] font-black uppercase tracking-widest">No Dues</span>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
-                        );
-                    })}
-                </div>
+                        </div>
+                    );
+                }) : (
+                    <div className="text-center py-20">
+                        <Package className="mx-auto text-slate-200 mb-4" size={48} />
+                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No order history found</p>
+                    </div>
+                )}
             </div>
         </div>
     );

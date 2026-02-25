@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation"; // 1. Import this
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import ProductCard from "@/Components/ProductCard";
 import ProductFilter from "@/Components/ProductFilter";
-
+import { Search, PackageSearch } from "lucide-react";
+import { Toaster } from "react-hot-toast";
 function GalleryContent() {
-    const searchParams = useSearchParams(); // 2. Hook to read URL params
-
+    const searchParams = useSearchParams();
     const [products, setProducts] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState("");
 
-    // 3. Initialize state using URL parameters
     const [filters, setFilters] = useState({
         category: searchParams.get("category") || null,
         subcategory: searchParams.get("subcategory") || null,
@@ -21,70 +21,109 @@ function GalleryContent() {
         sort: searchParams.get("sort") || "relevant"
     });
 
-    // 4. Update filters if URL changes (e.g., user clicks a different link)
+    // 1. Sync URL params
     useEffect(() => {
-        const category = searchParams.get("category");
-        const subcategory = searchParams.get("subcategory");
-        const innerCategory = searchParams.get("innerCategory");
-
-        // We update the filters state
         setFilters({
-            category: category,
-            subcategory: subcategory,
-            innerCategory: innerCategory,
+            category: searchParams.get("category"),
+            subcategory: searchParams.get("subcategory"),
+            innerCategory: searchParams.get("innerCategory"),
             sort: searchParams.get("sort") || "relevant"
         });
     }, [searchParams]);
 
+    // 2. Fetch Categories
     useEffect(() => {
         async function fetchSidebarData() {
             const { data } = await supabase
                 .from("categories")
-                .select(`
-                    id, name,
-                    subcategories (
-                        id, title,
-                        inner_categories (id, title)
-                    )
-                `);
+                .select(`id, name, subcategories (id, title, inner_categories (id, title))`);
             setCategories(data || []);
         }
         fetchSidebarData();
     }, []);
 
-    // IMPORTANT: Update the query logic to be more specific
-    useEffect(() => {
-        async function fetchFilteredProducts() {
-            setLoading(true);
-            let query = supabase
-                .from("products")
-                .select("*, product_images(image_url), product_variants(*)");
+    // 3. Fetch Products (FIXED LOGIC)
+useEffect(() => {
+    async function fetchFilteredProducts() {
+        setLoading(true);
 
-            // Prioritize the deepest level of filtering
-            if (filters.innerCategory) {
-                query = query.eq("inner_category_id", filters.innerCategory);
-            } else if (filters.subcategory) {
-                query = query.eq("subcategory_id", filters.subcategory);
-            } else if (filters.category) {
-                query = query.eq("category_id", filters.category);
+        // 1. Fetch products with their variants and images
+        let query = supabase
+            .from("products")
+            .select("*, product_images(image_url), product_variants(*)");
+
+        // Category Filtering
+        if (filters.innerCategory) {
+            query = query.eq("inner_category_id", filters.innerCategory);
+        } else if (filters.subcategory) {
+            query = query.eq("subcategory_id", filters.subcategory);
+        } else if (filters.category) {
+            query = query.eq("category_id", filters.category);
+        }
+
+        // Search Logic
+        if (searchQuery) {
+            query = query.ilike("name", `%${searchQuery}%`);
+        }
+
+        try {
+            const { data, error } = await query;
+            if (error) throw error;
+
+            let processedData = data || [];
+
+            // 2. MANUAL CLIENT-SIDE SORTING
+            // We sort based on the first variant's wholesale_price
+            if (filters.sort === "low") {
+                processedData.sort((a, b) => {
+                    const priceA = a.product_variants?.[0]?.wholesale_price || 0;
+                    const priceB = b.product_variants?.[0]?.wholesale_price || 0;
+                    return priceA - priceB;
+                });
+            } else if (filters.sort === "high") {
+                processedData.sort((a, b) => {
+                    const priceA = a.product_variants?.[0]?.wholesale_price || 0;
+                    const priceB = b.product_variants?.[0]?.wholesale_price || 0;
+                    return priceB - priceA; // Higher price first
+                });
+            } else if (filters.sort === "newest") {
+                processedData.sort((a, b) => 
+                    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                );
             }
-            // Sorting Logic
-            if (filters.sort === "low") query = query.order("wholesale_price", { foreignTable: "product_variants", ascending: true });
-            else if (filters.sort === "high") query = query.order("wholesale_price", { foreignTable: "product_variants", ascending: false });
-            else if (filters.sort === "newest") query = query.order("created_at", { ascending: false });
 
-            const { data } = await query;
-            setProducts(data || []);
+            setProducts(processedData);
+        } catch (err: any) {
+            console.error("Fetch Error:", err.message);
+            setProducts([]);
+        } finally {
             setLoading(false);
         }
-        fetchFilteredProducts();
-    }, [filters]);
+    }
 
+    const timer = setTimeout(() => fetchFilteredProducts(), 300);
+    return () => clearTimeout(timer);
+}, [filters, searchQuery]);
     return (
         <div className="min-h-screen bg-[#F8FAFC]">
-            <div className="max-w-[1500px] mx-auto px-4 py-10">
-                {/* PREMIUM WAREHOUSE HEADER */}
-                <header className="relative pt-1 pb-1 px-4 overflow-hidden">
+            <Toaster position="bottom-right" />
+
+            {/* STICKY SEARCH HEADER */}
+            <div className="sticky top-0 z-[40] bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 py-4">
+                <div className="max-w-[1400px] mx-auto relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Search Library..."
+                        className="w-full bg-slate-100 rounded-2xl py-3 pl-12 pr-4 text-sm font-bold outline-none focus:ring-2 focus:ring-red-500/10 transition-all"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+            </div>
+
+            <div className="max-w-[1500px] mx-auto px-4">
+                <header className="relative pt-1 pb-1 px-4 overflow-hidden mb-8">
                     <div className="absolute -top-12 left-0 text-[180px] font-black text-slate-50 select-none -z-10 tracking-tighter leading-none opacity-60">
                         VAULT
                     </div>
@@ -98,11 +137,7 @@ function GalleryContent() {
                                 </span>
                             </div>
                             <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-slate-900 tracking-[-0.05em] flex items-center gap-x-4 flex-wrap">
-                                Product
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-orange-400 italic font-serif font-light">
-                                    Library
-                                </span>
-                                <span className="h-2 w-2 rounded-full bg-slate-200 hidden md:block"></span>
+                                Product <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-orange-400 italic font-serif font-light">Library</span>
                             </h1>
                         </div>
 
@@ -116,17 +151,14 @@ function GalleryContent() {
                                 </div>
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Verified Batches</p>
                             </div>
-                            <div className="absolute -top-1 -right-1 flex h-4 w-4">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-20"></span>
-                                <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500 border-2 border-white shadow-sm"></span>
-                            </div>
                         </div>
                     </div>
                 </header>
 
-                <div className="max-w-[1500px] mx-auto px-4 flex flex-col lg:flex-row gap-12 py-10">
+                <div className="flex flex-col lg:flex-row gap-8">
+                    {/* FILTER COMPONENT - Rendered only once */}
                     <aside className="w-full lg:w-[300px] shrink-0">
-                        <div className="sticky top-24 bg-white border border-slate-100 rounded-[2.5rem] p-8">
+                        <div className="sticky top-28 bg-white border border-slate-100 rounded-[2.5rem] p-6 shadow-sm">
                             <ProductFilter
                                 categories={categories}
                                 activeFilters={filters}
@@ -135,22 +167,29 @@ function GalleryContent() {
                         </div>
                     </aside>
 
-                    <main className="flex-grow">
+                    {/* PRODUCT GRID */}
+                    <main className="flex-1 pb-40">
                         {loading ? (
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 animate-pulse">
-                                {[...Array(8)].map((_, i) => <div key={i} className="h-80 bg-slate-50 rounded-[2.5rem]" />)}
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                                {products.map((p) => (
-                                    <ProductCard key={p.id} product={p} />
+                            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                                {[...Array(8)].map((_, i) => (
+                                    <div key={i} className="aspect-[3/4] bg-slate-200 animate-pulse rounded-3xl" />
                                 ))}
                             </div>
-                        )}
-                        {!loading && products.length === 0 && (
-                            <div className="text-center py-20 bg-white rounded-[2.5rem] border border-dashed border-slate-200">
-                                <p className="text-slate-400 font-bold uppercase tracking-widest">No products found in this selection</p>
-                            </div>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                                    {products.map((p) => (
+                                        <ProductCard key={p.id} product={p} />
+                                    ))}
+                                </div>
+
+                                {products.length === 0 && (
+                                    <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-slate-200">
+                                        <PackageSearch className="mx-auto text-slate-300 mb-4" size={48} />
+                                        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">No Items Found</p>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </main>
                 </div>
@@ -159,10 +198,9 @@ function GalleryContent() {
     );
 }
 
-// 5. Wrap in Suspense to prevent build errors with useSearchParams
 export default function WholesaleGallery() {
     return (
-        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading Gallery...</div>}>
+        <Suspense fallback={<div className="p-20 text-center font-black">LOADING...</div>}>
             <GalleryContent />
         </Suspense>
     );

@@ -90,7 +90,6 @@ export default function HomePage() {
     <main className="bg-white">
 
       {/* SECTION 1: PREMIUM HERO SLIDER */}
-      {/* SECTION 1: PREMIUM HERO SLIDER */}
       <section className="relative h-[450px] md:h-[550px] overflow-hidden bg-slate-900">
         <Swiper
           effect={"fade"}
@@ -126,10 +125,10 @@ export default function HomePage() {
 
                 {/* Content Wrapper */}
                 <div className="relative max-w-7xl mx-auto px-6 md:px-12 w-full">
-                  <div className="max-w-2xl">
+                  <div className="max-w-4xl">
 
-                    {/* Animated Badge */}
-                    <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 px-4 py-1.5 rounded-full mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    {/* Animated Badge - Hidden on very small screens to save space */}
+                    <div className="hidden xs:inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 px-4 py-1.5 rounded-full mb-4 md:mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
                       <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
@@ -139,32 +138,32 @@ export default function HomePage() {
                       </span>
                     </div>
 
-                    {/* Headline with High Contrast */}
-                    <h1 className="text-4xl md:text-7xl font-extrabold text-white leading-[1.1] tracking-tight mb-6 animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-100">
+                    {/* Headline with High Contrast - Responsive Sizing */}
+                    <h1 className="text-3xl sm:text-4xl md:text-7xl font-extrabold text-white leading-[1.1] tracking-tight mb-4 md:mb-6 animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-100">
                       {banner.title}
-
                     </h1>
 
-                    {/* Refined Description */}
-                    <p className="max-w-md text-slate-200 text-base md:text-lg mb-10 leading-relaxed drop-shadow-md animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200">
+                    {/* Refined Description - Line clamped on mobile to prevent overlap */}
+                    <p className="max-w-xs md:max-w-md text-slate-200 text-sm md:text-lg mb-6 md:mb-10 leading-relaxed drop-shadow-md line-clamp-3 md:line-clamp-none animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200">
                       {banner.short_description}
                     </p>
 
-                    {/* Action Buttons */}
-                    <div className="flex flex-wrap gap-4 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-300">
+                    {/* Action Buttons - Stacked on Mobile, Row on Desktop */}
+                    {/* Action Buttons - Forced onto the same line */}
+                    <div className="flex flex-row items-center gap-2 md:gap-4 mt-6 md:mt-10 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-300">
                       <Link
-                        href="/products"
-                        className="group/btn bg-white hover:bg-red-600 text-slate-900 hover:text-white px-10 py-4 rounded-full font-bold text-sm flex items-center gap-3 transition-all duration-300 shadow-[0_15px_30px_-10px_rgba(255,255,255,0.2)]"
+                        href="/productgallery"
+                        className="flex-1 sm:flex-none group/btn bg-white hover:bg-red-600 text-slate-900 hover:text-white px-4 md:px-10 py-3 md:py-4 rounded-full font-bold text-[11px] md:text-sm flex items-center justify-center gap-2 md:gap-3 transition-all duration-300 shadow-lg whitespace-nowrap"
                       >
                         Explore Now
-                        <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
+                        <ArrowRight size={16} className="hidden xs:block group-hover/btn:translate-x-1 transition-transform" />
                       </Link>
 
                       <Link
-                        href="/collections"
-                        className="bg-transparent border border-white/30 hover:bg-white/10 backdrop-blur-sm text-white px-10 py-4 rounded-full font-bold text-sm transition-all"
+                        href="/categories"
+                        className="flex-1 sm:flex-none bg-transparent border border-white/30 hover:bg-white/10 backdrop-blur-sm text-white px-4 md:px-10 py-3 md:py-4 rounded-full font-bold text-[11px] md:text-sm flex items-center justify-center transition-all whitespace-nowrap"
                       >
-                        View Catalog
+                        Catalog
                       </Link>
                     </div>
 
@@ -176,44 +175,49 @@ export default function HomePage() {
         </Swiper>
       </section>
 
-      {/* SECTION 2: BROWSE CATEGORIES (Modern Editorial Tiles) */}
-      <section className="max-w-7xl mx-auto px-4 md:px-6 -mt-16 md:-mt-20 relative z-20">
-        <div className="bg-white/90 backdrop-blur-3xl p-6 md:p-8 rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] border border-white/60">
+      {/* SECTION 2: BROWSE CATEGORIES */}
+      <section className="max-w-7xl mx-auto px-4 md:px-6 -mt-16 md:-mt-8 relative z-20">
+        <div className="bg-white/90 backdrop-blur-3xl p-4 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] border border-white/60">
 
-          {/* Grid System: Scrollable on Mobile, Grid on Desktop */}
-          <div className="flex overflow-x-auto pb-4 md:pb-0 md:grid md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6 no-scrollbar">
+          {/* Scroll Container: 
+        1. 'flex overflow-x-auto' enables horizontal scrolling.
+        2. 'snap-x snap-mandatory' makes it feel like a slider.
+        3. 'no-scrollbar' (requires a CSS utility) or hidden scrollbar styles.
+    */}
+          <div className="flex flex-nowrap overflow-x-auto gap-4 md:grid md:grid-cols-4 lg:grid-cols-6 md:gap-6 pb-2 md:pb-0 snap-x snap-mandatory scroll-smooth [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {categories
               .sort((a, b) => a.name.localeCompare(b.name))
               .slice(0, 6)
               .map((cat) => (
                 <Link
                   key={cat.id}
-                  href={`/products?category=${cat.id}`}
-                  className="group relative flex-shrink-0 w-[140px] md:w-auto overflow-hidden rounded-3xl bg-slate-50 transition-all duration-500 hover:bg-white hover:shadow-2xl hover:shadow-red-500/10 hover:-translate-y-1"
+                  /* UPDATED NAVIGATION HERE */
+                  href={`/Wholesale/productgallery?category=${cat.id}`}
+                  className="group relative flex-shrink-0 w-[130px] md:w-auto snap-center overflow-hidden rounded-2xl md:rounded-3xl bg-slate-50 transition-all duration-500 hover:bg-white hover:shadow-2xl hover:shadow-red-500/10 hover:-translate-y-1"
                 >
                   {/* Background Highlight on Hover */}
                   <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                  <div className="p-4 flex flex-col items-center">
-                    {/* Image Container: Rectangular with "Floating" Shadow */}
-                    <div className="relative h-24 w-full md:h-28 rounded-2xl overflow-hidden mb-4 shadow-sm group-hover:shadow-md transition-all duration-500">
+                  <div className="p-3 md:p-4 flex flex-col items-center">
+                    {/* Image Container */}
+                    <div className="relative h-20 w-full md:h-28 rounded-xl md:rounded-2xl overflow-hidden mb-3 md:mb-4 shadow-sm group-hover:shadow-md transition-all duration-500">
                       <Image
                         src={cat.image_url || "/placeholder.png"}
                         alt={cat.name}
                         fill
                         className="object-cover transition-transform duration-700 group-hover:scale-110"
                       />
-                      {/* Subtle Inner Glow Overlay */}
-                      <div className="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-2xl" />
+                      <div className="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-xl md:rounded-2xl" />
                     </div>
 
-                    {/* Typography: Clean, Wide Spaced */}
+                    {/* Typography */}
                     <div className="text-center space-y-1">
-                      <h3 className="text-[10px] md:text-[11px] font-bold text-slate-900 uppercase tracking-[0.15em] transition-colors group-hover:text-red-600">
+                      <h3 className="text-[10px] md:text-[11px] font-bold text-slate-900 uppercase tracking-[0.12em] transition-colors group-hover:text-red-600 truncate w-full px-1">
                         {cat.name}
                       </h3>
-                      <p className="text-[8px] font-medium text-slate-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0">
-                        Browse
+                      {/* Desktop-only Browse Hint */}
+                      <p className="hidden md:block text-[8px] font-medium text-slate-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0">
+                        Browse Collection
                       </p>
                     </div>
                   </div>
@@ -227,55 +231,64 @@ export default function HomePage() {
       </section>
 
       {/* SECTION 3: TRENDING ARRIVALS - EDITORIAL REDESIGN */}
-      <section className="max-w-[1400px] mx-auto px-6 py-24 bg-white overflow-hidden">
+      <section className="max-w-[1400px] mx-auto px-4 py-8 bg-white overflow-hidden">
 
         {/* Header: High-End Luxury Layout */}
-        <div className="relative mb-5">
-          <div className="flex flex-col gap-2">
-            {/* Decorative Floating Label */}
-            <div className="flex items-center gap-4 mb-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.5em] text-red-600 bg-red-50 px-3 py-1 rounded-sm">
+        <div className="relative mb-8 md:mb-16 px-1">
+          <div className="flex flex-col gap-4">
+
+            {/* Decorative Floating Label - Tighter on Mobile */}
+            <div className="flex items-center gap-3 md:gap-4 mb-2">
+              <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.3em] md:tracking-[0.5em] text-red-600 bg-red-50 px-2 md:px-3 py-1 rounded-sm whitespace-nowrap">
                 Issue No. 01
               </span>
               <div className="h-[1px] flex-grow bg-slate-100"></div>
             </div>
 
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 md:gap-8">
               <div className="relative">
-                {/* Background Ghost Text for Texture */}
-                <span className="absolute -top-10 -left-4 text-8xl font-black text-slate-50 select-none -z-10 tracking-tighter">
+                {/* Background Ghost Text - Scaled down for mobile to prevent overflow */}
+                <span className="absolute -top-6 md:-top-10 -left-2 md:-left-4 text-6xl md:text-8xl font-black text-slate-50 select-none -z-10 tracking-tighter opacity-70 md:opacity-100">
                   TOP
                 </span>
 
-                <h2 className="text-6xl md:text-8xl font-black text-slate-900 tracking-[-0.06em] leading-[0.8] mb-2">
-                  Trending
-                  <span className="relative inline-block mt-2">
-                    <span className="text-slate-900"> Now</span>
-                    <span className="absolute -bottom-2 left-0 w-full h-3 bg-red-600/10 -rotate-1"></span>
-                  </span>
+                {/* Headline - Responsive font sizes and leading */}
+                <h2 className="text-5xl md:text-5xl font-black text-slate-900 tracking-[-0.05em] md:tracking-[-0.06em] leading-[0.9] md:leading-[0.8]">
+                  Trending Now
+
+                  <span className="absolute -bottom-1 md:-bottom-2 left-0 w-full h-2 md:h-3 bg-red-600/10 -rotate-1"></span>
+
                 </h2>
 
-                <p className="mt-6 text-slate-400 font-medium uppercase text-[10px] tracking-[0.3em] max-w-xs leading-relaxed">
-                  Curated selection of this week's <br /> most sought-after essentials.
+                <p className="mt-4 md:mt-6 text-slate-400 font-medium uppercase text-[9px] md:text-[10px] tracking-[0.2em] md:tracking-[0.3em] max-w-[240px] md:max-w-xs leading-relaxed">
+                  Curated selection of this week&apos;s <br className="hidden md:block" /> most sought-after essentials.
                 </p>
+              </div>      {/* Elegant Navigation Controls - Hidden on mobile, visible on tablet+ */}
+              <div className="hidden md:flex gap-4 mt-12 justify-start">
+                <button className="prev-trending h-12 w-12 border border-slate-200 rounded-full flex items-center justify-center bg-white text-slate-900 hover:bg-slate-900 hover:text-white transition-all disabled:opacity-20 shadow-sm">
+                  <ArrowRight className="rotate-180" size={20} />
+                </button>
+                <button className="next-trending h-12 w-12 border border-slate-200 rounded-full flex items-center justify-center bg-white text-slate-900 hover:bg-slate-900 hover:text-white transition-all disabled:opacity-20 shadow-sm">
+                  <ArrowRight size={20} />
+                </button>
               </div>
 
-              {/* Action Link: Minimalist & Bold */}
+              {/* Action Link: Redesigned for Mobile Touch and Desktop Elegance */}
               <Link
-                href="/products"
-                className="group relative inline-flex items-center gap-8 pr-4"
+                href="/productgallery"
+                className="group relative inline-flex items-center justify-between lg:justify-end gap-4 md:gap-8 pr-2 md:pr-4 mt-2 lg:mt-0"
               >
-                <div className="flex flex-col items-end">
-                  <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1 group-hover:text-red-600 transition-colors">
-                    Collection
+                <div className="flex flex-col items-start lg:items-end order-2 lg:order-1">
+                  <span className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mb-1 group-hover:text-red-600 transition-colors">
+                    Categories
                   </span>
-                  <span className="text-slate-900 text-lg font-black uppercase tracking-tighter group-hover:pr-2 transition-all">
-                    Explore Library
+                  <span className="text-slate-900 text-base md:text-lg font-black uppercase tracking-tighter group-hover:translate-x-1 lg:group-hover:-translate-x-1 transition-all">
+                    Explore Products
                   </span>
                 </div>
 
-                <div className="relative h-14 w-14 rounded-full border border-slate-900 flex items-center justify-center overflow-hidden transition-all duration-500 group-hover:bg-slate-900 group-hover:text-white group-hover:rotate-45">
-                  <ArrowUpRight size={24} strokeWidth={2.5} />
+                <div className="relative h-12 w-12 md:h-14 md:w-14 rounded-full border border-slate-900 flex items-center justify-center overflow-hidden transition-all duration-500 group-hover:bg-slate-900 group-hover:text-white group-hover:rotate-45 order-1 lg:order-2">
+                  <ArrowUpRight size={20} md={24} strokeWidth={2.5} />
                   {/* Hover Circle Fill Effect */}
                   <div className="absolute inset-0 bg-slate-900 translate-y-full group-hover:translate-y-0 transition-transform duration-300 -z-10"></div>
                 </div>
@@ -285,45 +298,46 @@ export default function HomePage() {
         </div>
 
         {/* SWIPER PRODUCT ROW (Horizontal Scroll) */}
-        <div className="relative group/swiper">
+        <div className="relative group/swiper -mx-4 px-4 md:mx-0 md:px-0">
           <Swiper
             modules={[Navigation, Autoplay]}
-            spaceBetween={40}
-            slidesPerView={1.2}
+            /* 1. Reduced spacing for mobile to keep cards connected */
+            spaceBetween={16}
+            /* 2. Show 1 full card and a "peek" of the second one to signal it's a slider */
+            slidesPerView={1.25}
             navigation={{
               nextEl: ".next-trending",
               prevEl: ".prev-trending",
             }}
             breakpoints={{
-              640: { slidesPerView: 2.2 },
-              1024: { slidesPerView: 3.2 },
-              1280: { slidesPerView: 4 },
+              640: { slidesPerView: 2.2, spaceBetween: 24 },
+              1024: { slidesPerView: 3.2, spaceBetween: 32 },
+              1280: { slidesPerView: 4, spaceBetween: 40 },
             }}
             autoplay={{ delay: 5000, disableOnInteraction: true }}
+            /* 3. overflow-visible allows shadows not to be clipped */
             className="!overflow-visible"
           >
             {recentProducts.map((product) => (
-              <SwiperSlide key={product.id}>
-                {/* Product Cards here */}
+              <SwiperSlide key={product.id} className="pb-4">
                 <ProductCard product={product} />
               </SwiperSlide>
             ))}
           </Swiper>
 
-          {/* Elegant Navigation Controls */}
-          <div className="flex gap-4 mt-12 justify-center md:justify-start">
-            <button className="prev-trending h-12 w-12 border border-slate-200 rounded-full flex items-center justify-center bg-slate-900 hover:text-white transition-all disabled:opacity-20">
-              <ArrowRight className="rotate-180" size={20} />
-            </button>
-            <button className="next-trending h-12 w-12 border border-slate-200 rounded-full flex items-center justify-center bg-slate-900 hover:text-white transition-all disabled:opacity-20">
-              <ArrowRight size={20} />
-            </button>
+
+
+          {/* Mobile-Only Progress Indicator (Optional but recommended) */}
+          <div className="md:hidden flex justify-center mt-6">
+            <div className="h-1 w-24 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-red-600 transition-all duration-300" style={{ width: '33%' }}></div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* SECTION 4: SUBCATEGORY EXPLORER */}
-      <section className="bg-[#f8fafc] py-24 overflow-hidden">
+      <section className="bg-[#f8fafc] py-1 overflow-hidden">
         <div className="max-w-9xl mx-auto px-6">
 
           {categories.map((category) => {
@@ -331,7 +345,7 @@ export default function HomePage() {
             if (relatedSubs.length === 0) return null;
 
             return (
-              <div key={category.id} className="mb-20 last:mb-0">
+              <div key={category.id} className="mb-10 last:mb-0">
                 {/* --- HEADER SECTION --- */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
                   <div className="space-y-1">
@@ -444,7 +458,7 @@ export default function HomePage() {
 
             {/* View All Button: Editorial Style */}
             <Link
-              href="/products"
+              href="/productgallery"
               className="group flex items-center gap-4 bg-slate-900 text-white pl-6 pr-2 py-2 rounded-full hover:bg-red-600 transition-all duration-500 w-fit self-start md:self-end"
             >
               <span className="text-[10px] font-black uppercase tracking-widest">
@@ -505,8 +519,8 @@ export default function HomePage() {
                 </span>
               </div>
               <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-[-0.04em] leading-none">
-                Built on <span className="text-slate-300  font-light">Trust</span>,
-                Driven by <span className="text-slate-300 font-light">Quality</span>.
+                Built on Trust,
+                Driven by Quality.
               </h2>
             </div>
             <p className="text-slate-400 text-sm  font-medium max-w-[280px] leading-relaxed">
@@ -569,7 +583,7 @@ function FeatureItem({ icon, title, desc, number, className }: any) {
       hover:shadow-[0_40px_80px_-15px_rgba(220,38,38,0.1)] 
       hover:-translate-y-2 group ${className}
     `}>
-      
+
       {/* 1. Large Subtle Watermark Number */}
       <span className="absolute -bottom-4 -right-2 text-[120px] font-black text-slate-50 opacity-[0.03] group-hover:opacity-[0.08] group-hover:scale-110 transition-all duration-700 select-none">
         {number}
@@ -588,10 +602,10 @@ function FeatureItem({ icon, title, desc, number, className }: any) {
       <div className="relative z-10 p-10 md:p-14 flex flex-col h-full">
         {/* 3. Icon Container with specialized glow */}
         <div className="relative mb-12 inline-flex">
-           <div className="absolute inset-0 bg-red-100 rounded-2xl blur-2xl opacity-0 group-hover:opacity-40 transition-opacity duration-500" />
-           <div className="relative p-4 bg-slate-50 rounded-2xl text-red-600 group-hover:bg-red-600 group-hover:text-white transition-all duration-500 group-hover:rotate-[10deg] shadow-sm">
-             {React.cloneElement(icon, { size: 28, strokeWidth: 1.5 })}
-           </div>
+          <div className="absolute inset-0 bg-red-100 rounded-2xl blur-2xl opacity-0 group-hover:opacity-40 transition-opacity duration-500" />
+          <div className="relative p-4 rounded-2xl  bg-red-600 text-white transition-all duration-500 group-hover:rotate-[10deg] shadow-sm">
+            {React.cloneElement(icon, { size: 28, strokeWidth: 1.5 })}
+          </div>
         </div>
 
         {/* 4. Text Content */}
@@ -605,13 +619,6 @@ function FeatureItem({ icon, title, desc, number, className }: any) {
           </p>
         </div>
 
-        {/* 5. Bottom Interactive Element */}
-        <div className="mt-auto pt-8 flex items-center gap-2">
-           <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 group-hover:text-red-600 transition-colors">
-             Learn More
-           </span>
-           <div className="h-[2px] w-4 bg-slate-200 group-hover:w-10 group-hover:bg-red-600 transition-all duration-500" />
-        </div>
       </div>
 
       {/* 6. Corner Gradient (Only visible on hover) */}

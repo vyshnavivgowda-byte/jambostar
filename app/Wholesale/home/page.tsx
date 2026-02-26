@@ -430,10 +430,7 @@ export default function HomePage() {
       <section className="max-w-[1400px] mx-auto px-2">
         {/* HEADER AREA: SEASONAL / DISCOUNT SECTION */}
         <div className="relative mb-12 px-4">
-          {/* Decorative Background Element */}
-          <div className="absolute -top-6 left-0 text-[120px] font-black text-slate-50 select-none -z-10 tracking-tighter leading-none opacity-50">
-            OFFERS
-          </div>
+
 
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div className="space-y-1">

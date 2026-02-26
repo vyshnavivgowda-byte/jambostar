@@ -158,8 +158,8 @@ useEffect(() => {
                 <div className="flex flex-col lg:flex-row gap-8">
                     {/* FILTER COMPONENT - Rendered only once */}
                     <aside className="w-full lg:w-[300px] shrink-0">
-                        <div className="sticky top-28 bg-white border border-slate-100 rounded-[2.5rem] p-6 shadow-sm">
-                            <ProductFilter
+<div className="sticky top-28 z-30 bg-white border border-slate-100 rounded-[2.5rem] p-6 shadow-sm">
+                                <ProductFilter
                                 categories={categories}
                                 activeFilters={filters}
                                 onFilterChange={(newFilters: any) => setFilters(newFilters)}

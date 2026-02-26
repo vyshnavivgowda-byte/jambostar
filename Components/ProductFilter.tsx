@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ChevronRight, ChevronDown, SlidersHorizontal, RotateCcw, X, Filter } from "lucide-react";
+import { ChevronRight, ChevronDown, RotateCcw, X, Filter, Check } from "lucide-react";
 
 export default function ProductFilter({
     categories = [],
@@ -10,9 +10,8 @@ export default function ProductFilter({
 }: any) {
     const [expandedCat, setExpandedCat] = useState<string | null>(null);
     const [expandedSub, setExpandedSub] = useState<string | null>(null);
-    const [isOpen, setIsOpen] = useState(false); // Controls mobile drawer visibility
+    const [isOpen, setIsOpen] = useState(false);
 
-    // Auto-expand logic (Kept from your original)
     useEffect(() => {
         if (activeFilters.innerCategory && categories.length > 0) {
             categories.forEach((cat: any) => {
@@ -34,8 +33,8 @@ export default function ProductFilter({
 
     const sortOptions = [
         { id: "relevant", label: "Most Relevant" },
-        { id: "low", label: "Wholesale: Low to High" }, // Updated label
-        { id: "high", label: "Wholesale: High to Low" }, // Updated label
+        { id: "low", label: "Wholesale: Low to High" },
+        { id: "high", label: "Wholesale: High to Low" },
     ];
 
     const handleReset = () => {
@@ -44,19 +43,30 @@ export default function ProductFilter({
         setExpandedSub(null);
     };
 
-    // Shared Filter Content (Used for both Desktop & Mobile)
     const FilterContent = () => (
-        <div className="flex flex-col gap-10 select-none pb-20 lg:pb-0">
-            {/* 1. HEADER & RESET */}
+        <div className="flex flex-col gap-10 select-none pb-10 lg:pb-0">
+            {/* 1. HEADER & RESET & APPLY */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-6">
                 <div className="flex items-center gap-2">
                     <div className="h-2 w-2 bg-red-600 rounded-full animate-pulse" />
                     <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-900">Refine Selection</h4>
                 </div>
-                <button onClick={handleReset} className="text-red-600 hover:rotate-[-90deg] transition-all duration-300 flex items-center gap-2">
-                    <span className="text-[9px] font-bold uppercase tracking-widest lg:hidden">Reset</span>
-                    <RotateCcw size={14} />
-                </button>
+                
+                <div className="flex items-center gap-3">
+                    {/* NEW SMALL APPLY BUTTON */}
+                    <button 
+                        onClick={() => setIsOpen(false)}
+                        className="lg:hidden flex items-center gap-1.5 bg-slate-900 text-white px-3 py-1.5 rounded-full hover:bg-red-600 transition-colors duration-300"
+                    >
+                        <span className="text-[9px] font-black uppercase tracking-widest">Apply</span>
+                        <Check size={12} />
+                    </button>
+
+                    <button onClick={handleReset} className="text-red-600 hover:rotate-[-90deg] transition-all duration-300 flex items-center gap-2">
+                        <span className="text-[9px] font-bold uppercase tracking-widest lg:hidden">Reset</span>
+                        <RotateCcw size={14} />
+                    </button>
+                </div>
             </div>
 
             {/* 2. SORTING ENGINE */}
@@ -66,7 +76,10 @@ export default function ProductFilter({
                     {sortOptions.map((opt) => (
                         <button
                             key={opt.id}
-                            onClick={() => onFilterChange({ ...activeFilters, sort: opt.id })}
+                            onClick={() => {
+                                onFilterChange({ ...activeFilters, sort: opt.id });
+                                setIsOpen(false); 
+                            }}
                             className={`relative text-left px-5 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 ${activeFilters?.sort === opt.id
                                 ? "bg-slate-900 text-white shadow-lg"
                                 : "text-slate-400 bg-slate-50 lg:bg-transparent hover:bg-slate-100 hover:text-slate-900"
@@ -122,7 +135,10 @@ export default function ProductFilter({
                                                     {sub.inner_categories?.map((inner: any) => (
                                                         <button
                                                             key={inner.id}
-                                                            onClick={() => onFilterChange({ ...activeFilters, innerCategory: inner.id })}
+                                                            onClick={() => {
+                                                                onFilterChange({ ...activeFilters, innerCategory: inner.id });
+                                                                setIsOpen(false); 
+                                                            }}
                                                             className={`px-3 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${activeFilters?.innerCategory === inner.id
                                                                 ? "bg-slate-900 text-white"
                                                                 : "bg-slate-100 text-slate-400"
@@ -146,8 +162,8 @@ export default function ProductFilter({
 
     return (
         <>
-            {/* MOBILE FLOATING ACTION BUTTON - UPDATED POSITION */}
-            <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[70] lg:hidden">
+            {/* MOBILE FLOATING FILTER BUTTON */}
+             <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[70] lg:hidden">
                 <button
                     onClick={() => setIsOpen(true)}
                     className="bg-slate-900 text-white px-8 py-4 rounded-full shadow-2xl flex items-center gap-3 active:scale-95 transition-transform border border-white/10"
@@ -157,35 +173,30 @@ export default function ProductFilter({
                 </button>
             </div>
             {/* MOBILE DRAWER OVERLAY */}
-            <div className={`fixed inset-0 pt-[88px] bg-slate-900/60 backdrop-blur-sm z-40 transition-opacity duration-300 lg:hidden ${isOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+            <div className={`fixed inset-0 pt-[80px] bg-slate-900/60 backdrop-blur-sm z-[100] transition-opacity duration-300 lg:hidden ${isOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
                 <div
-                    className={`bg-white rounded-t-[3rem] p-8 h-[calc(100vh-88px)] overflow-y-auto transition-transform duration-500 transform ${isOpen ? 'translate-y-0' : 'translate-y-full'
-                        }`}
+                    className={`relative bg-white rounded-t-[3rem] h-full flex flex-col transition-transform duration-500 transform ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
                 >
-                    <div className="flex justify-center mb-6">
-                        <div className="w-12 h-1.5 bg-slate-100 rounded-full" onClick={() => setIsOpen(false)} />
+                    {/* Handle bar */}
+                    <div className="flex justify-center py-4 flex-shrink-0" onClick={() => setIsOpen(false)}>
+                        <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
                     </div>
+
                     <button
                         onClick={() => setIsOpen(false)}
-                        className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full text-slate-400"
+                        className="absolute top-6 right-8 p-2 bg-slate-50 rounded-full text-slate-400 z-10"
                     >
                         <X size={20} />
                     </button>
 
-                    <FilterContent />
-
-                    <div className="sticky bottom-0 p-6 bg-gradient-to-t from-white via-white to-transparent">
-                        <button
-                            onClick={() => setIsOpen(false)}
-                            className="w-full bg-red-600 text-white py-4 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] shadow-xl shadow-red-200"
-                        >
-                            Apply Selection
-                        </button>
+                    {/* Content area */}
+                    <div className="flex-1 overflow-y-auto px-8 pb-10">
+                        <FilterContent />
                     </div>
                 </div>
             </div>
 
-            {/* DESKTOP SIDEBAR RENDER */}
+            {/* DESKTOP SIDEBAR */}
             <div className="hidden lg:block w-full">
                 <FilterContent />
             </div>

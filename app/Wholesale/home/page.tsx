@@ -288,7 +288,7 @@ export default function HomePage() {
                 </div>
 
                 <div className="relative h-12 w-12 md:h-14 md:w-14 rounded-full border border-slate-900 flex items-center justify-center overflow-hidden transition-all duration-500 group-hover:bg-slate-900 group-hover:text-white group-hover:rotate-45 order-1 lg:order-2">
-                  <ArrowUpRight size={20} md={24} strokeWidth={2.5} />
+                  <ArrowUpRight className="w-5 h-5 md:w-6 md:h-6" strokeWidth={2.5} />
                   {/* Hover Circle Fill Effect */}
                   <div className="absolute inset-0 bg-slate-900 translate-y-full group-hover:translate-y-0 transition-transform duration-300 -z-10"></div>
                 </div>

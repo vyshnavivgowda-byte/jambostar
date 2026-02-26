@@ -20,6 +20,15 @@ import {
   ShoppingBag
 } from "lucide-react";
 
+import { ReactNode } from "react";
+
+interface BottomTabProps {
+  href: string;
+  icon: ReactNode;
+  label: string;
+  count?: number;
+  active?: boolean;
+}
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -238,8 +247,20 @@ function MobileNavLink({ href, label, onClick }: { href: string; label: string; 
   );
 }
 
-const BottomTab = ({ href, icon, label, count = 0, active = false }) => (
-  <Link href={href} className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-red-600' : 'text-slate-400'}`}>
+
+const BottomTab = ({
+  href,
+  icon,
+  label,
+  count = 0,
+  active = false,
+}: BottomTabProps) => (
+  <Link
+    href={href}
+    className={`flex flex-col items-center gap-1 transition-all ${
+      active ? "text-red-600" : "text-slate-400"
+    }`}
+  >
     <div className="relative">
       {icon}
       {count > 0 && (

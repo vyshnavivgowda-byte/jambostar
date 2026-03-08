@@ -17,7 +17,7 @@ export default function DeliveryDashboard() {
 
     useEffect(() => {
         const riderStr = localStorage.getItem("delivery_user");
-        if (!riderStr) { window.location.href = "/delivery/login"; return; }
+        if (!riderStr) { window.location.href = "/deliverylogin"; return; }
         const user = JSON.parse(riderStr);
         setRider(user);
         fetchOrders(user.id);

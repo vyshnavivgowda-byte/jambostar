@@ -32,7 +32,7 @@ export default function DeliveryLogin() {
         // Store rider session locally
         localStorage.setItem("delivery_user", JSON.stringify(data));
         toast.success(`Welcome back, ${data.name}`);
-        
+
         // Redirect to dashboard
         router.push("/delivery/dashboard");
     };
@@ -45,7 +45,7 @@ export default function DeliveryLogin() {
                     <div className="h-16 w-16 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
                         <ShieldCheck size={32} className="text-red-600" />
                     </div>
-                    <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Fleet Login</h1>
+                    <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Deliver Parnter Login</h1>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-2">Jumbo Star Logistics Portal</p>
                 </div>
 
@@ -58,10 +58,10 @@ export default function DeliveryLogin() {
                             placeholder="Registered Phone Number"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
-                            className="w-full bg-slate-50 border-none rounded-2xl pl-14 pr-6 py-5 text-sm font-bold focus:ring-2 focus:ring-red-600 transition-all"
+                            className="text-black w-full bg-slate-50 border-none rounded-2xl pl-14 pr-6 py-5 text-sm font-bold focus:ring-2 focus:ring-red-600 transition-all"
                         />
                     </div>
-                    
+
                     <button
                         disabled={loading}
                         className="w-full bg-slate-900 text-white py-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-red-600 transition-all flex items-center justify-center gap-3 shadow-xl shadow-slate-200"
@@ -72,7 +72,7 @@ export default function DeliveryLogin() {
                 </form>
 
                 <p className="text-center mt-10 text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
-                    Contact Admin if you are unable <br/> to access your route profile.
+                    Contact Admin if you are unable <br /> to access your route profile.
                 </p>
             </div>
         </div>

@@ -29,7 +29,7 @@ export default function AdminOrdersPage() {
 
             const { data: usersData, error: uError } = await supabase
                 .from("wholesale_users")
-.select('id, email, business_id, company_name, first_name, last_name, phone, shop_address, registered_address, gst_number')
+                .select('id, email, business_id, company_name, first_name, last_name, phone, shop_address, registered_address, gst_number')
             if (uError) throw uError;
 
             // Combine data
@@ -69,64 +69,64 @@ export default function AdminOrdersPage() {
         } finally { setLoading(false); }
     };
 
-const updateStatus = async (orderId: string, updates: any) => {
-  try {
-    setUpdating(true);
+    const updateStatus = async (orderId: string, updates: any) => {
+        try {
+            setUpdating(true);
 
-    // Find order
-    const order = orders.find((o) => o.id === orderId);
+            // Find order
+            const order = orders.find((o) => o.id === orderId);
 
-    if (!order) {
-      toast.error("Order not found");
-      return;
-    }
+            if (!order) {
+                toast.error("Order not found");
+                return;
+            }
 
-    // Update order in Supabase
-    const { error } = await supabase
-      .from("orders")
-      .update(updates)
-      .eq("id", orderId);
+            // Update order in Supabase
+            const { error } = await supabase
+                .from("orders")
+                .update(updates)
+                .eq("id", orderId);
 
-    if (error) throw error;
+            if (error) throw error;
 
-    toast.success("Status Updated");
+            toast.success("Status Updated");
 
-    // Send email only if customer email exists
-    const customerEmail = order?.wholesale_users?.email;
+            // Send email only if customer email exists
+            const customerEmail = order?.wholesale_users?.email;
 
-    if (customerEmail) {
-      try {
-await fetch("/api/send-order-email", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    email: customerEmail,
-    orderId: order.order_id_custom,
-    status: updates.order_status || updates.payment_status,
-    items: order.items,
-    total: order.total_payable_amount,
-    paid: order.amount_paid_now,
-    remaining: order.remaining_balance,
-    address: order.address_snapshot,
-  }),
-});
-      } catch (emailError) {
-        console.error("Email send failed:", emailError);
-      }
-    }
+            if (customerEmail) {
+                try {
+                    await fetch("/api/send-order-email", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            email: customerEmail,
+                            orderId: order.order_id_custom,
+                            status: updates.order_status || updates.payment_status,
+                            items: order.items,
+                            total: order.total_payable_amount,
+                            paid: order.amount_paid_now,
+                            remaining: order.remaining_balance,
+                            address: order.address_snapshot,
+                        }),
+                    });
+                } catch (emailError) {
+                    console.error("Email send failed:", emailError);
+                }
+            }
 
-    // Refresh orders
-    await fetchOrders();
+            // Refresh orders
+            await fetchOrders();
 
-  } catch (err) {
-    console.error(err);
-    toast.error("Update Failed");
-  } finally {
-    setUpdating(false);
-  }
-};
+        } catch (err) {
+            console.error(err);
+            toast.error("Update Failed");
+        } finally {
+            setUpdating(false);
+        }
+    };
 
     const generateCombinedPDF = () => {
         if (!selectedClient) return;
@@ -181,8 +181,8 @@ await fetch("/api/send-order-email", {
         ];
 
         const rows: any[] = [];
-activeOrders.forEach((order: any) => {          
-      const deliveryAddress = order.address_snapshot || "N/A";
+        activeOrders.forEach((order: any) => {
+            const deliveryAddress = order.address_snapshot || "N/A";
             // Calculate the running total of remaining balance
             totalRemainingBalance += Number(order.remaining_balance || 0);
 
@@ -298,7 +298,7 @@ activeOrders.forEach((order: any) => {
                                 <td className="px-8 py-6">
                                     {/* Calculate total remaining across all active orders for this client */}
                                     <div className="text-sm font-black text-red-600">
-                                    client.all_orders.reduce((acc: number, o: any) => acc + (Number(o.remaining_balance) || 0), 0)
+                                        {client.all_orders.reduce((acc: number, o: any) => acc + (Number(o.remaining_balance) || 0), 0)}
                                     </div>
                                 </td>
                                 <td className="px-8 py-6 text-right">

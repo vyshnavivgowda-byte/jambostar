@@ -6,13 +6,10 @@ import { useState, useEffect } from "react";
 import AuthModal from "./AuthModal";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  Search,
   ShoppingCart,
   Heart,
   User,
   Package,
-  Menu,
-  X,
   ChevronDown,
   LogOut,
   LayoutGrid,
@@ -22,27 +19,25 @@ import {
 
 import { ReactNode } from "react";
 
-interface BottomTabProps {
+interface NavProps {
   href: string;
   icon: ReactNode;
   label: string;
   count?: number;
   active?: boolean;
 }
+
 export default function Header() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+  const [wishlistCount, setWishlistCount] = useState(0);
 
   useEffect(() => {
     const checkUser = () => {
       const savedUser = localStorage.getItem("wholesale_user");
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
-      } else {
-        setUser(null);
-      }
+      setUser(savedUser ? JSON.parse(savedUser) : null);
     };
 
     checkUser();
@@ -54,12 +49,8 @@ export default function Header() {
     localStorage.removeItem("wholesale_user");
     setUser(null);
     setIsProfileOpen(false);
-    // Use window.location.href to redirect to home on logout
     window.location.href = "/Wholesale/home";
   };
-  // Inside Header component
-  const [cartCount, setCartCount] = useState(0);
-  const [wishlistCount, setWishlistCount] = useState(0);
 
   const fetchCounts = async () => {
     const savedUser = localStorage.getItem("wholesale_user");
@@ -70,17 +61,10 @@ export default function Header() {
     }
     const userId = JSON.parse(savedUser).id;
 
-    // Fetch Cart Count
-    const { count: cCount } = await supabase
-      .from("cart")
-      .select("*", { count: 'exact', head: true })
-      .eq("user_id", userId);
-
-    // Fetch Wishlist Count
-    const { count: wCount } = await supabase
-      .from("wishlist")
-      .select("*", { count: 'exact', head: true })
-      .eq("user_id", userId);
+    const [{ count: cCount }, { count: wCount }] = await Promise.all([
+      supabase.from("cart").select("*", { count: 'exact', head: true }).eq("user_id", userId),
+      supabase.from("wishlist").select("*", { count: 'exact', head: true }).eq("user_id", userId)
+    ]);
 
     setCartCount(cCount || 0);
     setWishlistCount(wCount || 0);
@@ -88,139 +72,142 @@ export default function Header() {
 
   useEffect(() => {
     fetchCounts();
-
-    // Listen for login and manual updates
     window.addEventListener("wholesale_login", fetchCounts);
-    window.addEventListener("cartUpdated", fetchCounts); // Custom event
-
+    window.addEventListener("cartUpdated", fetchCounts);
     return () => {
       window.removeEventListener("wholesale_login", fetchCounts);
       window.removeEventListener("cartUpdated", fetchCounts);
     };
   }, [user]);
-return (
-  <>
-    <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-slate-100 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex justify-between items-center h-16 md:h-20 gap-4">
 
-          {/* Logo - Perfectly Centered on Mobile if needed, or left-aligned */}
-          <Link href="/" className="flex-shrink-0 transition-opacity hover:opacity-80">
-            <Image src="/logoremovebg.png" alt="Logo" width={40} height={50} className="object-contain md:w-[50px] md:h-[60px]" priority />
-          </Link>
-
-          {/* Search Bar - Desktop Only */}
-          <div className="hidden xl:flex flex-1 max-w-xs relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-red-600 transition-colors" size={16} />
-            <input
-              type="text"
-              placeholder="Search products..."
-              className="w-full bg-slate-50 pl-10 pr-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-red-500/10 focus:bg-white border border-slate-200 focus:border-red-500/30 transition-all font-medium text-xs text-slate-900"
-            />
-          </div>
-
-          {/* Main Navigation - Desktop Only */}
-          <nav className="hidden lg:flex items-center gap-8">
-            <NavLink href="/Wholesale/home" icon={<Home size={18} />} label="Home" />
-            <NavLink href="/Wholesale/categories" icon={<LayoutGrid size={18} />} label="Categories" />
-            <NavLink href="/Wholesale/productgallery" icon={<ShoppingBag size={18} />} label="Products" />
-          </nav>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2 sm:gap-4">
+  return (
+    <>
+      <header className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-lg border-b border-slate-200/60 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16 md:h-20">
             
-            {/* Mobile Search Icon - Only visible on small screens */}
-            <button className="xl:hidden p-2 text-slate-600 hover:bg-slate-50 rounded-full">
-              <Search size={20} />
-            </button>
+            {/* Logo Section */}
+            <div className="flex items-center">
+              <Link href="/Wholesale/home" className="flex-shrink-0 transition-transform hover:scale-105">
+                <Image 
+                  src="/logoremovebg.png" 
+                  alt="Logo" 
+                  width={45} 
+                  height={55} 
+                  className="object-contain" 
+                  priority 
+                />
+              </Link>
+            </div>
 
-            {!user ? (
-              <button
-                onClick={() => setIsAuthOpen(true)}
-                className="px-4 py-2 md:px-5 md:py-2 bg-red-600 text-white rounded-lg md:rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-wider hover:bg-red-700 transition-all shadow-md shadow-red-100"
-              >
-                Login
-              </button>
-            ) : (
-              <div className="flex items-center gap-1 sm:gap-3">
-                {/* Wishlist - Hidden on small mobile, moved to bottom nav */}
-                <Link href="/Wholesale/wishlist" className="hidden sm:block p-2 text-slate-600 hover:text-red-600 transition-colors relative">
-                  <Heart size={20} />
-                  {wishlistCount > 0 && (
-                    <span className="absolute top-0 right-0 h-4 w-4 bg-red-600 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white">
-                      {wishlistCount}
-                    </span>
-                  )}
-                </Link>
+            {/* Desktop Navigation */}
+            <nav className="hidden lg:flex items-center bg-slate-100/50 rounded-full px-2 py-1 gap-1">
+              <NavLink href="/Wholesale/home" icon={<Home size={18} />} label="Home" />
+              <NavLink href="/Wholesale/categories" icon={<LayoutGrid size={18} />} label="Categories" />
+              <NavLink href="/Wholesale/productgallery" icon={<ShoppingBag size={18} />} label="Products" />
+            </nav>
 
-                {/* Profile Dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    className="flex items-center gap-1 p-1 bg-slate-50 rounded-full border border-slate-200"
-                  >
-                    <div className="h-7 w-7 md:h-8 md:w-8 bg-slate-900 rounded-full flex items-center justify-center text-white">
-                      <User size={14} />
-                    </div>
-                    <ChevronDown size={12} className={`text-slate-400 hidden md:block transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
-                  </button>
+            {/* Action Group */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              
 
-                  {isProfileOpen && (
-                    <div className="absolute right-0 mt-3 w-56 bg-white border border-slate-100 rounded-2xl shadow-2xl p-2 z-[60]">
-                      <div className="px-4 py-3 border-b border-slate-50 mb-1">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Business Account</p>
-                        <p className="text-sm font-bold text-slate-900 truncate">{user.email}</p>
+              {user ? (
+                <div className="flex items-center gap-2 border-l border-slate-200 ml-2 pl-4">
+                  
+                  {/* Desktop Wishlist */}
+                  <Link href="/Wholesale/wishlist" className="hidden sm:flex relative p-2 text-slate-600 hover:bg-red-50 hover:text-red-600 rounded-full transition-all">
+                    <Heart size={22} />
+                    {wishlistCount > 0 && (
+                      <span className="absolute top-1 right-1 h-4 w-4 bg-red-600 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white">
+                        {wishlistCount}
+                      </span>
+                    )}
+                  </Link>
+
+                  {/* Desktop Cart - NEWLY ADDED NEXT TO WISHLIST */}
+                  <Link href="/Wholesale/cart" className="hidden sm:flex relative p-2 text-slate-600 hover:bg-red-50 hover:text-red-600 rounded-full transition-all">
+                    <ShoppingCart size={22} />
+                    {cartCount > 0 && (
+                      <span className="absolute top-1 right-1 h-4 w-4 bg-slate-900 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white">
+                        {cartCount}
+                      </span>
+                    )}
+                  </Link>
+
+                  {/* Profile Dropdown */}
+                  <div className="relative ml-2">
+                    <button
+                      onClick={() => setIsProfileOpen(!isProfileOpen)}
+                      className="flex items-center gap-2 p-1.5 pr-3 bg-white hover:bg-slate-50 rounded-full border border-slate-200 transition-all shadow-sm"
+                    >
+                      <div className="h-8 w-8 bg-gradient-to-tr from-slate-800 to-slate-600 rounded-full flex items-center justify-center text-white">
+                        <User size={16} />
                       </div>
-                      <MenuLink href="/Wholesale/profile" icon={<User size={16} />} label="My Profile" />
-                      <MenuLink href="/Wholesale/orders" icon={<Package size={16} />} label="Orders" />
-                      <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl mt-1">
-                        <LogOut size={16} /> Logout
-                      </button>
-                    </div>
-                  )}
+                      <ChevronDown size={14} className={`text-slate-400 transition-transform duration-300 ${isProfileOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isProfileOpen && (
+                      <div className="absolute right-0 mt-3 w-60 bg-white border border-slate-100 rounded-2xl shadow-xl p-2 z-[60] animate-in fade-in zoom-in duration-200">
+                        <div className="px-4 py-3 border-b border-slate-50 mb-1">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Business Account</p>
+                          <p className="text-sm font-semibold text-slate-900 truncate">{user.email}</p>
+                        </div>
+                        <MenuLink href="/Wholesale/profile" icon={<User size={16} />} label="Account Settings" />
+                        <MenuLink href="/Wholesale/orders" icon={<Package size={16} />} label="Order History" />
+                        <hr className="my-1 border-slate-50" />
+                        <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-xl transition-colors">
+                          <LogOut size={16} /> Logout
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="px-5 py-2.5 bg-red-600 text-white rounded-full font-bold text-xs uppercase tracking-wider hover:bg-red-700 transition-all shadow-lg shadow-red-200 active:scale-95"
+                >
+                  Login
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
 
-    {/* MOBILE BOTTOM NAVIGATION BAR */}
-    {/* Only visible on screens smaller than 'lg' */}
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-xl border-t border-slate-100 px-6 py-3 pb-6 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
-      <div className="flex justify-between items-center max-w-md mx-auto">
-        <BottomTab href="/Wholesale/home" icon={<Home size={22} />} label="Home" active />
-        <BottomTab href="/Wholesale/categories" icon={<LayoutGrid size={22} />} label="Explore" />
-        
-        {/* Centralized Cart Action */}
-        <Link href="/Wholesale/cart" className="relative -mt-10 flex flex-col items-center">
-          <div className="h-14 w-14 bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-red-200 border-4 border-white">
-            <ShoppingCart size={24} />
-            {cartCount > 0 && (
-              <span className="absolute top-0 right-0 h-5 w-5 bg-slate-900 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white">
-                {cartCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[10px] font-bold text-slate-900 mt-1">Cart</span>
-        </Link>
+      {/* MOBILE BOTTOM NAVIGATION */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-6 py-3 pb-8 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+        <div className="flex justify-between items-center max-w-md mx-auto relative">
+          <BottomTab href="/Wholesale/home" icon={<Home size={22} />} label="Home" />
+          <BottomTab href="/Wholesale/categories" icon={<LayoutGrid size={22} />} label="Explore" />
+          
+          <Link href="/Wholesale/cart" className="relative -mt-12 group">
+            <div className="h-16 w-16 bg-red-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-red-200 border-[6px] border-white group-active:scale-90 transition-transform">
+              <ShoppingCart size={26} />
+              {cartCount > 0 && (
+                <span className="absolute top-0 right-0 h-5 w-5 bg-slate-900 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white">
+                  {cartCount}
+                </span>
+              )}
+            </div>
+            <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-900">Cart</span>
+          </Link>
 
-        <BottomTab href="/Wholesale/wishlist" icon={<Heart size={22} />} label="Wishlist" count={wishlistCount} />
-        <BottomTab href="/Wholesale/productgallery" icon={<ShoppingBag size={22} />} label="Shop" />
-      </div>
-    </nav>
+          <BottomTab href="/Wholesale/wishlist" icon={<Heart size={22} />} label="Wishlist" count={wishlistCount} />
+          <BottomTab href="/Wholesale/productgallery" icon={<ShoppingBag size={22} />} label="Shop" />
+        </div>
+      </nav>
 
-    <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
-  </>
-);
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+    </>
+  );
 }
 
-// --- Helper Components ---
+// --- Sub-Components ---
 
 function NavLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
-    <Link href={href} className="flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-red-600 transition-colors group">
+    <Link href={href} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 hover:text-red-600 hover:bg-white rounded-full transition-all duration-200">
       <span className="text-slate-400 group-hover:text-red-500 transition-colors">{icon}</span>
       {label}
     </Link>
@@ -229,46 +216,24 @@ function NavLink({ href, icon, label }: { href: string; icon: React.ReactNode; l
 
 function MenuLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
-    <Link href={href} className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-red-600 rounded-xl transition-all">
-      {icon} {label}
+    <Link href={href} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-red-600 rounded-xl transition-all">
+      <span className="opacity-70">{icon}</span> {label}
     </Link>
   );
 }
 
-function MobileNavLink({ href, label, onClick }: { href: string; label: string; onClick: () => void }) {
+function BottomTab({ href, icon, label, count = 0 }: NavProps) {
   return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className="block px-4 py-3 text-base font-bold text-slate-700 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all"
-    >
-      {label}
+    <Link href={href} className="flex flex-col items-center gap-1 text-slate-400 hover:text-red-600 transition-colors">
+      <div className="relative">
+        {icon}
+        {count > 0 && (
+          <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-600 text-white text-[8px] font-bold flex items-center justify-center rounded-full border border-white">
+            {count}
+          </span>
+        )}
+      </div>
+      <span className="text-[10px] font-bold tracking-tight uppercase">{label}</span>
     </Link>
   );
 }
-
-
-const BottomTab = ({
-  href,
-  icon,
-  label,
-  count = 0,
-  active = false,
-}: BottomTabProps) => (
-  <Link
-    href={href}
-    className={`flex flex-col items-center gap-1 transition-all ${
-      active ? "text-red-600" : "text-slate-400"
-    }`}
-  >
-    <div className="relative">
-      {icon}
-      {count > 0 && (
-        <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-600 text-white text-[8px] font-bold flex items-center justify-center rounded-full">
-          {count}
-        </span>
-      )}
-    </div>
-    <span className="text-[10px] font-bold tracking-tight">{label}</span>
-  </Link>
-);

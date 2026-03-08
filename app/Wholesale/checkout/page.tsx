@@ -16,7 +16,7 @@ export default function CheckoutPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [payLoading, setPayLoading] = useState(false);
-
+    const [transportCharge, setTransportCharge] = useState(0);
     // Data States
     const [cartItems, setCartItems] = useState<any[]>([]);
     const [dbAddresses, setDbAddresses] = useState<any[]>([]);
@@ -44,49 +44,94 @@ export default function CheckoutPage() {
         try {
             const userStr = localStorage.getItem("wholesale_user");
             if (!userStr) return router.push("/");
+
             const user = JSON.parse(userStr);
 
-            // 1. Load Cart (Matching CartPage Logic)
-            const { data: cart } = await supabase.from("cart").select(`
-                id,
-                quantity, 
-                product_variants(
-                    id, variant, unit, wholesale_price, 
-                    products(name, brand, product_images(image_url))
-                )
-            `).eq("user_id", user.id);
+            // 1️⃣ LOAD PROFILE FIRST
+            const { data: profile } = await supabase
+                .from("wholesale_users")
+                .select("*")
+                .eq("id", user.id)
+                .single();
 
-            if (cart && cart.length > 0) {
-                setCartItems(cart);
-                const calcSubtotal = cart.reduce((acc, item: any) =>
-                    acc + (item.quantity * item.product_variants.wholesale_price), 0);
+            const transport = profile?.transport_charge || 0;
+            setTransportCharge(transport);
 
-                setSubtotal(calcSubtotal);
-                const grandTotal = calcSubtotal * 1.18; // 18% GST
-                setTotalWithGst(grandTotal);
-                setAdvanceAmount(Math.ceil(grandTotal * minPercent));
-            } else {
-                router.push("/Wholesale/cart"); // Redirect if empty
-            }
-
-            // 2. Load Profile & Custom Addresses
-            const { data: profile } = await supabase.from("wholesale_users").select("*").eq("id", user.id).single();
             if (profile) {
                 setProfileAddresses([
-                    { id: 'reg', type: 'Registered Office', addr: profile.registered_address, icon: <Building2 size={16} /> },
-                    { id: 'shop', type: 'Shop/Warehouse', addr: profile.shop_address, icon: <Store size={16} /> }
+                    {
+                        id: "reg",
+                        type: "Registered Office",
+                        addr: profile.registered_address,
+                        icon: <Building2 size={16} />,
+                    },
+                    {
+                        id: "shop",
+                        type: "Shop/Warehouse",
+                        addr: profile.shop_address,
+                        icon: <Store size={16} />,
+                    },
                 ]);
+
                 setSelectedAddressText(profile.registered_address);
             }
 
-            const { data: addr } = await supabase.from("addresses").select("*").eq("user_id", user.id);
+            // 2️⃣ LOAD CART
+            const { data: cart } = await supabase
+                .from("cart")
+                .select(`
+        id,
+        quantity,
+        product_variants(
+          id,
+          variant,
+          unit,
+          wholesale_price,
+          products(
+            name,
+            brand,
+            product_images(image_url)
+          )
+        )
+      `)
+                .eq("user_id", user.id);
+
+            if (!cart || cart.length === 0) {
+                router.push("/Wholesale/cart");
+                return;
+            }
+
+            setCartItems(cart);
+
+            // 3️⃣ CALCULATE TOTALS
+            const calcSubtotal = cart.reduce(
+                (acc: number, item: any) =>
+                    acc + item.quantity * item.product_variants.wholesale_price,
+                0
+            );
+
+            const gst = calcSubtotal * 0.18;
+
+            const grandTotal = calcSubtotal + gst + transport;
+
+            setSubtotal(calcSubtotal);
+            setTotalWithGst(grandTotal);
+            setAdvanceAmount(Math.ceil(grandTotal * minPercent));
+
+            // 4️⃣ LOAD EXTRA ADDRESSES
+            const { data: addr } = await supabase
+                .from("addresses")
+                .select("*")
+                .eq("user_id", user.id);
+
             setDbAddresses(addr || []);
 
+        } catch (error) {
+            console.error("Checkout load error:", error);
         } finally {
             setLoading(false);
         }
     };
-
     const handleAdvanceChange = (val: number) => {
         if (val > totalWithGst) {
             setAdvanceAmount(Math.floor(totalWithGst));
@@ -180,25 +225,65 @@ export default function CheckoutPage() {
                 name: "JumboStar Wholesale",
                 description: `Order ${customId}`,
                 handler: async function (response: any) {
-                    // 7. Update Order on Success
+                    const paymentStatus = advanceAmount >= totalWithGst ? "paid" : "partially_paid";
+
+                    // 1. Update Order Payment Details
                     const { error: updateError } = await supabase
                         .from("orders")
                         .update({
                             payment_id: response.razorpay_payment_id,
-                            payment_status: advanceAmount >= totalWithGst ? 'paid' : 'partially_paid'
+                            payment_status: paymentStatus
                         })
-                        .eq('id', order.id);
+                        .eq("id", order.id);
 
                     if (updateError) {
-                        console.error("Update Error:", updateError);
-                        toast.error("Payment successful, but order update failed. Please contact support.");
+                        console.error("Order Update Error:", updateError);
+                        toast.error("Payment succeeded but order update failed.");
                         return;
                     }
 
-                    // 8. Finalize: Clear Cart & Redirect
-                    await supabase.from("cart").delete().eq("user_id", user.id);
-                    window.dispatchEvent(new Event("cartUpdated")); // Sync header cart count
+                    // 2. REDUCE STOCK FOR EACH ITEM
+                    try {
+                        // We use Promise.all to run these updates efficiently
+                        await Promise.all(cartItems.map(async (item) => {
+                            const { error: stockError } = await supabase.rpc('reduce_stock', {
+                                variant_id: item.product_variants.id,
+                                qty_to_reduce: item.quantity
+                            });
 
+                            if (stockError) {
+                                console.error(`Stock reduction failed for ${item.product_variants.id}:`, stockError);
+                            }
+                        }));
+                    } catch (err) {
+                        console.error("Critical Stock Update Error:", err);
+                    }
+
+                    // 3. SEND ORDER EMAIL
+                    try {
+                        await fetch("/api/send-order-email", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                email: user.email,
+                                orderId: customId,
+                                status: "Order Placed",
+                                items: orderItemsSnapshot,
+                                total: totalWithGst,
+                                paid: advanceAmount,
+                                remaining: remainingBalance,
+                                address: selectedAddressText,
+                            }),
+                        });
+                    } catch (emailErr) {
+                        console.error("Email failed:", emailErr);
+                    }
+
+                    // 4. CLEAR CART
+                    await supabase.from("cart").delete().eq("user_id", user.id);
+
+                    // 5. FINALIZE
+                    window.dispatchEvent(new Event("cartUpdated"));
                     toast.success("Order Placed Successfully!");
                     router.push("/Wholesale/orders");
                 },
@@ -345,6 +430,11 @@ export default function CheckoutPage() {
                                 <div className="flex justify-between items-end">
                                     <div className="text-xs font-bold text-slate-400 uppercase">Bulk GST (18%)</div>
                                     <div className="text-sm font-black">₹{(subtotal * 0.18).toLocaleString()}</div>
+                                </div>
+
+                                <div className="flex justify-between items-end">
+                                    <div className="text-xs font-bold text-slate-400 uppercase">Transport Charge</div>
+                                    <div className="text-sm font-black">₹{transportCharge.toLocaleString()}</div>
                                 </div>
                                 <div className="h-px bg-slate-800 my-4" />
                                 <div className="flex justify-between items-end">

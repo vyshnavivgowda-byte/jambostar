@@ -14,7 +14,6 @@ import {
     ShieldCheck, 
     Loader2, 
     Save,
-    ExternalLink,
     Store
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
@@ -61,6 +60,7 @@ export default function WholesaleProfile() {
                     first_name: profile.first_name,
                     last_name: profile.last_name,
                     phone: profile.phone,
+                    registered_address: profile.registered_address,
                     shop_address: profile.shop_address,
                     google_maps_link: profile.google_maps_link
                 })
@@ -85,7 +85,8 @@ export default function WholesaleProfile() {
         <div className="min-h-screen bg-[#F9FAFB] pb-20">
             <Toaster />
             <div className="max-w-5xl mx-auto px-4 pt-10">
-                {/* Header Area */}
+                
+                {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
                     <div>
                         <div className="flex items-center gap-3 mb-2">
@@ -107,7 +108,7 @@ export default function WholesaleProfile() {
 
                 <form onSubmit={handleUpdate} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     
-                    {/* Left Column: Business Verification (Disabled) */}
+                    {/* Left Column: Verification */}
                     <div className="lg:col-span-1 space-y-6">
                         <div className="bg-slate-900 text-white rounded-[2rem] p-8 shadow-xl">
                             <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2">
@@ -135,6 +136,8 @@ export default function WholesaleProfile() {
 
                     {/* Right Column: Editable Info */}
                     <div className="lg:col-span-2 space-y-6">
+
+                        {/* Contact Info */}
                         <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
                             <h3 className="text-lg text-[#FF4F18] font-black uppercase tracking-tighter mb-8 flex items-center gap-2">
                                 <User className="text-[#FF4F18]" size={20}/> Contact Information
@@ -174,36 +177,50 @@ export default function WholesaleProfile() {
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
+                        {/* Addresses */}
+                        <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 space-y-6">
                             <h3 className="text-lg text-[#FF4F18] font-black uppercase tracking-tighter mb-8 flex items-center gap-2">
-                                <Store className="text-[#FF4F18]" size={20}/> Operating Address
+                                <MapPin className="text-[#FF4F18]" size={20}/> Addresses
                             </h3>
-                            
-                            <div className="space-y-6">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase px-1">Shop / Warehouse Address</label>
-                                    <textarea 
-                                        rows={3}
-                                        value={profile.shop_address}
-                                        onChange={(e) => setProfile({...profile, shop_address: e.target.value})}
-                                        className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:border-[#FF4F18] font-bold text-slate-900"
+
+                            {/* Registered Address */}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase px-1">Registered Address</label>
+                                <textarea
+                                    rows={3}
+                                    value={profile.registered_address}
+                                    onChange={(e) => setProfile({...profile, registered_address: e.target.value})}
+                                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:border-[#FF4F18] font-bold text-slate-900"
+                                />
+                            </div>
+
+                            {/* Shop/Warehouse Address */}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase px-1">Shop / Warehouse Address</label>
+                                <textarea
+                                    rows={3}
+                                    value={profile.shop_address}
+                                    onChange={(e) => setProfile({...profile, shop_address: e.target.value})}
+                                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:border-[#FF4F18] font-bold text-slate-900"
+                                />
+                            </div>
+
+                            {/* Google Maps Link */}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase px-1">Google Maps Link</label>
+                                <div className="relative">
+                                    <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                                    <input 
+                                        type="url" 
+                                        value={profile.google_maps_link}
+                                        onChange={(e) => setProfile({...profile, google_maps_link: e.target.value})}
+                                        className="w-full p-4 pl-12 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:border-[#FF4F18] font-bold text-slate-900"
                                     />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase px-1">Google Maps Link</label>
-                                    <div className="relative">
-                                        <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                                        <input 
-                                            type="url" 
-                                            value={profile.google_maps_link}
-                                            onChange={(e) => setProfile({...profile, google_maps_link: e.target.value})}
-                                            className="w-full p-4 pl-12 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:border-[#FF4F18] font-bold text-slate-900"
-                                        />
-                                    </div>
                                 </div>
                             </div>
                         </div>
 
+                        {/* Save Button */}
                         <button 
                             type="submit" 
                             disabled={updating}

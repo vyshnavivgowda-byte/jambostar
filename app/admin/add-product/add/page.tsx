@@ -564,7 +564,7 @@ export default function AddProductPage() {
                 </select>
               </div>
               {/* NEW INNER CATEGORY DROPDOWN */}
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <label className="text-[10px] font-black text-red-600 uppercase flex items-center gap-1">
                   <GitMerge size={12} /> Inner Category
                 </label>
@@ -572,7 +572,7 @@ export default function AddProductPage() {
                   <option value="">Choose Inner Category</option>
                   {innerCategories.map((inner) => <option key={inner.id} value={inner.id}>{inner.title}</option>)}
                 </select>
-              </div>
+              </div> */}
             </div>
           </div>
 

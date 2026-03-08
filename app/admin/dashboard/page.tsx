@@ -74,8 +74,7 @@ export default async function AdminDashboard() {
   const menuItems = [
     { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard, color: "text-blue-500" },
     { name: "Main Categories", path: "/admin/categories", icon: Boxes, color: "text-purple-500" },
-    { name: "Categories", path: "/admin/subcategories", icon: Layers, color: "text-orange-500" },
-    { name: "SubCategories", path: "/admin/innercategories", icon: ListTree, color: "text-pink-500" },
+    { name: "Sub Categories", path: "/admin/subcategories", icon: Layers, color: "text-orange-500" },
     { name: "Add Product", path: "/admin/add-product", icon: PackagePlus, color: "text-emerald-500" },
     { name: "Stock Control", path: "/admin/update-stock", icon: Edit, color: "text-amber-500" },
     { name: "Wholesale", path: "/admin/wholesale", icon: Users, color: "text-cyan-500" },
@@ -84,8 +83,8 @@ export default async function AdminDashboard() {
   ];
 
   const stats = [
-    { title: "Inventory", value: data.totalProducts, icon: Package, colorClass: "bg-gradient-to-br from-blue-500 to-blue-700" },
-    { title: "Taxonomy", value: data.totalCategories, icon: ListTree, colorClass: "bg-gradient-to-br from-purple-500 to-purple-700" },
+    { title: "Products", value: data.totalProducts, icon: Package, colorClass: "bg-gradient-to-br from-blue-500 to-blue-700" },
+    { title: "Categories", value: data.totalCategories, icon: ListTree, colorClass: "bg-gradient-to-br from-purple-500 to-purple-700" },
     { title: "Wholesalers", value: data.totalWholesale, icon: Users, colorClass: "bg-gradient-to-br from-emerald-500 to-emerald-700" },
     { title: "Sales", value: data.totalOrders, icon: ShoppingCart, colorClass: "bg-gradient-to-br from-orange-500 to-orange-700" },
   ];

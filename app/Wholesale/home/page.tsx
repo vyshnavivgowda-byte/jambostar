@@ -34,25 +34,30 @@ export default function HomePage() {
   useEffect(() => {
     const fetchHomeData = async () => {
       try {
-        // Added "subcategories" to the Promise.all
         const [genRes, discRes, catRes, prodRes, subRes] = await Promise.all([
           supabase.from("general_banners").select("*").order("id", { ascending: false }),
           supabase.from("discount_banners").select("*").limit(3),
           supabase.from("categories").select("*").order("name"),
+          // FETCH PRODUCTS WITH VARIANTS AND IMAGES
           supabase.from("products").select(`
           *, 
           categories(name), 
           product_images(image_url),
-          product_variants(*)
-        `).order("created_at", { ascending: false }).limit(8),
-          supabase.from("subcategories").select("*") // Fetch all subcategories
+          product_variants(*) 
+        `).order("created_at", { ascending: false }),
+          supabase.from("subcategories").select("*")
         ]);
 
         if (genRes.data) setGeneralBanners(genRes.data);
         if (discRes.data) setDiscountBanners(discRes.data);
         if (catRes.data) setCategories(catRes.data);
-        if (prodRes.data) setRecentProducts(prodRes.data);
-        if (subRes.data) setSubcategories(subRes.data); // Set subcategories
+        if (subRes.data) setSubcategories(subRes.data);
+
+        if (prodRes.data) {
+          // FILTER: Only items where is_featured is true for the "Trending" section
+          const featured = prodRes.data.filter(p => p.is_featured === true);
+          setRecentProducts(featured.length > 0 ? featured : prodRes.data.slice(0, 8));
+        }
       } catch (error) {
         console.error("Error:", error);
       } finally {
@@ -174,165 +179,138 @@ export default function HomePage() {
           ))}
         </Swiper>
       </section>
-
       {/* SECTION 2: BROWSE CATEGORIES */}
-      <section className="max-w-7xl mx-auto px-4 md:px-6 -mt-16 md:-mt-8 relative z-20">
-        <div className="bg-white/90 backdrop-blur-3xl p-4 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] border border-white/60">
+   {/* SECTION 2: BROWSE CATEGORIES */}
+<section className="max-w-7xl mx-auto px-4 md:px-6 -mt-16 md:-mt-8 relative z-20">
+  <div className="bg-white/90 backdrop-blur-3xl p-4 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] border border-white/60">
 
-          {/* Scroll Container: 
-        1. 'flex overflow-x-auto' enables horizontal scrolling.
-        2. 'snap-x snap-mandatory' makes it feel like a slider.
-        3. 'no-scrollbar' (requires a CSS utility) or hidden scrollbar styles.
-    */}
-          <div className="flex flex-nowrap overflow-x-auto gap-4 md:grid md:grid-cols-4 lg:grid-cols-6 md:gap-6 pb-2 md:pb-0 snap-x snap-mandatory scroll-smooth [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {categories
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .slice(0, 6)
-              .map((cat) => (
-                <Link
-                  key={cat.id}
-                  /* UPDATED NAVIGATION HERE */
-                  href={`/Wholesale/productgallery?category=${cat.id}`}
-                  className="group relative flex-shrink-0 w-[130px] md:w-auto snap-center overflow-hidden rounded-2xl md:rounded-3xl bg-slate-50 transition-all duration-500 hover:bg-white hover:shadow-2xl hover:shadow-red-500/10 hover:-translate-y-1"
-                >
-                  {/* Background Highlight on Hover */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+    <div className="flex flex-nowrap overflow-x-auto gap-4 md:grid md:grid-cols-4 md:gap-6 pb-2 md:pb-0 snap-x snap-mandatory scroll-smooth [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {(() => {
+        // 1. Identify "Other" category
+        const otherCategory = categories.find(cat => 
+          cat.name.toLowerCase() === 'other' || cat.name.toLowerCase() === 'others'
+        );
 
-                  <div className="p-3 md:p-4 flex flex-col items-center">
-                    {/* Image Container */}
-                    <div className="relative h-20 w-full md:h-28 rounded-xl md:rounded-2xl overflow-hidden mb-3 md:mb-4 shadow-sm group-hover:shadow-md transition-all duration-500">
-                      <Image
-                        src={cat.image_url || "/placeholder.png"}
-                        alt={cat.name}
-                        fill
-                        className="object-cover transition-transform duration-700 group-hover:scale-110"
-                      />
-                      <div className="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-xl md:rounded-2xl" />
-                    </div>
+        // 2. Filter out "Other" and sort by most recent (using created_at or id)
+        const recentCategories = categories
+          .filter(cat => cat.id !== otherCategory?.id)
+          // Sort descending: change 'created_at' to 'id' if you don't have a date string
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-                    {/* Typography */}
-                    <div className="text-center space-y-1">
-                      <h3 className="text-[10px] md:text-[11px] font-bold text-slate-900 uppercase tracking-[0.12em] transition-colors group-hover:text-red-600 truncate w-full px-1">
-                        {cat.name}
-                      </h3>
-                      {/* Desktop-only Browse Hint */}
-                      <p className="hidden md:block text-[8px] font-medium text-slate-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0">
-                        Browse Collection
-                      </p>
-                    </div>
-                  </div>
+        // 3. Take top 3 recent + append "Other" at the end
+        const displayCategories = recentCategories.slice(0, 3);
+        
+        if (otherCategory) {
+          displayCategories.push(otherCategory);
+        } else if (recentCategories[3]) {
+          // If no "Other" exists, just take the 4th most recent
+          displayCategories.push(recentCategories[3]);
+        }
 
-                  {/* Bottom Accent Bar */}
-                  <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-red-600 transition-all duration-500 group-hover:w-full" />
-                </Link>
-              ))}
-          </div>
-        </div>
-      </section>
+        return displayCategories.map((cat) => (
+          <Link
+            key={cat.id}
+            href={`/Wholesale/productgallery?category=${cat.id}`}
+            className="group relative flex-shrink-0 w-[130px] md:w-auto snap-center overflow-hidden rounded-2xl md:rounded-3xl bg-slate-50 transition-all duration-500 hover:bg-white hover:shadow-2xl hover:shadow-red-500/10 hover:-translate-y-1"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
+            <div className="p-3 md:p-4 flex flex-col items-center">
+              <div className="relative h-20 w-full md:h-28 rounded-xl md:rounded-2xl overflow-hidden mb-3 md:mb-4 shadow-sm group-hover:shadow-md transition-all duration-500">
+                <Image
+                  src={cat.image_url || "/placeholder.png"}
+                  alt={cat.name}
+                  fill
+                  className="object-cover transition-transform duration-700 group-hover:scale-110"
+                />
+                <div className="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-xl md:rounded-2xl" />
+              </div>
+
+              <div className="text-center space-y-1">
+                <h3 className="text-[10px] md:text-[11px] font-bold text-slate-900 uppercase tracking-[0.12em] transition-colors group-hover:text-red-600 truncate w-full px-1">
+                  {cat.name}
+                </h3>
+                <p className="hidden md:block text-[8px] font-medium text-slate-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0">
+                  Browse Collection
+                </p>
+              </div>
+            </div>
+
+            <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-red-600 transition-all duration-500 group-hover:w-full" />
+          </Link>
+        ));
+      })()}
+    </div>
+  </div>
+</section>
       {/* SECTION 3: TRENDING ARRIVALS - EDITORIAL REDESIGN */}
+      {/* SECTION 3: PREFERRED SELECTIONS */}
       <section className="max-w-[1400px] mx-auto px-4 py-8 bg-white overflow-hidden">
-
-        {/* Header: High-End Luxury Layout */}
         <div className="relative mb-8 md:mb-16 px-1">
           <div className="flex flex-col gap-4">
-
-            {/* Decorative Floating Label - Tighter on Mobile */}
             <div className="flex items-center gap-3 md:gap-4 mb-2">
               <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.3em] md:tracking-[0.5em] text-red-600 bg-red-50 px-2 md:px-3 py-1 rounded-sm whitespace-nowrap">
-                Issue No. 01
+                Editor's Choice
               </span>
               <div className="h-[1px] flex-grow bg-slate-100"></div>
             </div>
 
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 md:gap-8">
               <div className="relative">
-                {/* Background Ghost Text - Scaled down for mobile to prevent overflow */}
                 <span className="absolute -top-6 md:-top-10 -left-2 md:-left-4 text-6xl md:text-8xl font-black text-slate-50 select-none -z-10 tracking-tighter opacity-70 md:opacity-100">
-                  TOP
+                  BEST
                 </span>
-
-                {/* Headline - Responsive font sizes and leading */}
                 <h2 className="text-5xl md:text-5xl font-black text-slate-900 tracking-[-0.05em] md:tracking-[-0.06em] leading-[0.9] md:leading-[0.8]">
-                  Trending Now
-
+                  Preferred <br className="md:hidden" /> Items
                   <span className="absolute -bottom-1 md:-bottom-2 left-0 w-full h-2 md:h-3 bg-red-600/10 -rotate-1"></span>
-
                 </h2>
-
                 <p className="mt-4 md:mt-6 text-slate-400 font-medium uppercase text-[9px] md:text-[10px] tracking-[0.2em] md:tracking-[0.3em] max-w-[240px] md:max-w-xs leading-relaxed">
-                  Curated selection of this week&apos;s <br className="hidden md:block" /> most sought-after essentials.
+                  Handpicked premium quality <br className="hidden md:block" /> wholesale essentials.
                 </p>
-              </div>      {/* Elegant Navigation Controls - Hidden on mobile, visible on tablet+ */}
+              </div>
+
               <div className="hidden md:flex gap-4 mt-12 justify-start">
-                <button className="prev-trending h-12 w-12 border border-slate-200 rounded-full flex items-center justify-center bg-white text-slate-900 hover:bg-slate-900 hover:text-white transition-all disabled:opacity-20 shadow-sm">
+                <button className="prev-trending h-12 w-12 border border-slate-200 rounded-full flex items-center justify-center bg-white text-slate-900 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
                   <ArrowRight className="rotate-180" size={20} />
                 </button>
-                <button className="next-trending h-12 w-12 border border-slate-200 rounded-full flex items-center justify-center bg-white text-slate-900 hover:bg-slate-900 hover:text-white transition-all disabled:opacity-20 shadow-sm">
+                <button className="next-trending h-12 w-12 border border-slate-200 rounded-full flex items-center justify-center bg-white text-slate-900 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
                   <ArrowRight size={20} />
                 </button>
               </div>
-
-              {/* Action Link: Redesigned for Mobile Touch and Desktop Elegance */}
-              <Link
-                href="/productgallery"
-                className="group relative inline-flex items-center justify-between lg:justify-end gap-4 md:gap-8 pr-2 md:pr-4 mt-2 lg:mt-0"
-              >
-                <div className="flex flex-col items-start lg:items-end order-2 lg:order-1">
-                  <span className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mb-1 group-hover:text-red-600 transition-colors">
-                    Categories
-                  </span>
-                  <span className="text-slate-900 text-base md:text-lg font-black uppercase tracking-tighter group-hover:translate-x-1 lg:group-hover:-translate-x-1 transition-all">
-                    Explore Products
-                  </span>
-                </div>
-
-                <div className="relative h-12 w-12 md:h-14 md:w-14 rounded-full border border-slate-900 flex items-center justify-center overflow-hidden transition-all duration-500 group-hover:bg-slate-900 group-hover:text-white group-hover:rotate-45 order-1 lg:order-2">
-                  <ArrowUpRight className="w-5 h-5 md:w-6 md:h-6" strokeWidth={2.5} />
-                  {/* Hover Circle Fill Effect */}
-                  <div className="absolute inset-0 bg-slate-900 translate-y-full group-hover:translate-y-0 transition-transform duration-300 -z-10"></div>
-                </div>
-              </Link>
             </div>
           </div>
         </div>
 
-        {/* SWIPER PRODUCT ROW (Horizontal Scroll) */}
         <div className="relative group/swiper -mx-4 px-4 md:mx-0 md:px-0">
-          <Swiper
-            modules={[Navigation, Autoplay]}
-            /* 1. Reduced spacing for mobile to keep cards connected */
-            spaceBetween={16}
-            /* 2. Show 1 full card and a "peek" of the second one to signal it's a slider */
-            slidesPerView={1.25}
-            navigation={{
-              nextEl: ".next-trending",
-              prevEl: ".prev-trending",
-            }}
-            breakpoints={{
-              640: { slidesPerView: 2.2, spaceBetween: 24 },
-              1024: { slidesPerView: 3.2, spaceBetween: 32 },
-              1280: { slidesPerView: 4, spaceBetween: 40 },
-            }}
-            autoplay={{ delay: 5000, disableOnInteraction: true }}
-            /* 3. overflow-visible allows shadows not to be clipped */
-            className="!overflow-visible"
-          >
-            {recentProducts.map((product) => (
-              <SwiperSlide key={product.id} className="pb-4">
-                <ProductCard product={product} />
-              </SwiperSlide>
-            ))}
-          </Swiper>
-
-
-
-          {/* Mobile-Only Progress Indicator (Optional but recommended) */}
-          <div className="md:hidden flex justify-center mt-6">
-            <div className="h-1 w-24 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-red-600 transition-all duration-300" style={{ width: '33%' }}></div>
+          {recentProducts.length > 0 ? (
+            <Swiper
+              modules={[Navigation, Autoplay]}
+              spaceBetween={16}
+              slidesPerView={1.25}
+              navigation={{
+                nextEl: ".next-trending",
+                prevEl: ".prev-trending",
+              }}
+              breakpoints={{
+                640: { slidesPerView: 2.2, spaceBetween: 24 },
+                1024: { slidesPerView: 3.2, spaceBetween: 32 },
+                1280: { slidesPerView: 4, spaceBetween: 40 },
+              }}
+              autoplay={{ delay: 5000, disableOnInteraction: true }}
+              className="!overflow-visible"
+            >
+              {recentProducts.map((product) => (
+                <SwiperSlide key={product.id} className="pb-4">
+                  {/* Ensure the entire product object (with variants) is passed */}
+                  <ProductCard product={product} />
+                </SwiperSlide>
+              ))}
+            </Swiper>
+          ) : (
+            <div className="py-20 text-center bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200">
+              <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No Preferred Products Found</p>
             </div>
-          </div>
+          )}
         </div>
       </section>
 

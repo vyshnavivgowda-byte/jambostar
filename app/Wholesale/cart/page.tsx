@@ -13,7 +13,7 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-
+  const [transportCharge, setTransportCharge] = useState<number>(0);
   useEffect(() => {
     checkUser();
   }, []);
@@ -21,10 +21,13 @@ export default function CartPage() {
   const checkUser = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     const userStr = localStorage.getItem("wholesale_user");
-    
+
     if (session?.user || userStr) {
       setIsLoggedIn(true);
-      fetchCart(session?.user?.id || JSON.parse(userStr!).id);
+      const userId = session?.user?.id || JSON.parse(userStr!).id;
+
+      fetchCart(userId);
+      fetchTransportCharge(userId);
     } else {
       setIsLoggedIn(false);
       setLoading(false);
@@ -59,7 +62,21 @@ export default function CartPage() {
       setLoading(false);
     }
   };
+const fetchTransportCharge = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from("wholesale_users")
+      .select("transport_charge")
+      .eq("id", userId)
+      .single();
 
+    if (!error && data) {
+      setTransportCharge(data.transport_charge || 0);
+    }
+  } catch (err) {
+    console.log("Transport charge fetch error");
+  }
+};
   const updateQuantity = async (id: string, newQty: number, minQty: number) => {
     if (newQty < minQty) {
       toast.error(`Minimum order is ${minQty}`);
@@ -79,7 +96,7 @@ export default function CartPage() {
     }
   };
 
-  const subtotal = cartItems.reduce((acc, item) => 
+  const subtotal = cartItems.reduce((acc, item) =>
     acc + (item.product_variants.wholesale_price * item.quantity), 0
   );
 
@@ -93,40 +110,40 @@ export default function CartPage() {
   // NOT LOGGED IN STATE
   if (!isLoggedIn) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-       <div className="bg-white rounded-[2.5rem] p-10 md:p-20 text-center border border-slate-100 shadow-xl max-w-lg w-full">
-          <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <LockKeyhole className="text-red-600" size={32} />
-          </div>
-          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter mb-4">Access Denied</h2>
-          <p className="text-slate-500 text-sm mb-8 leading-relaxed">Your wholesale cart is encrypted. Please login to view your bulk selections and custom pricing.</p>
-          <button 
-            onClick={() => setShowAuthModal(true)}
-            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg"
-          >
-            Login to Cart
-          </button>
-          <AuthModal isOpen={showAuthModal} onClose={() => { setShowAuthModal(false); checkUser(); }} />
-       </div>
+      <div className="bg-white rounded-[2.5rem] p-10 md:p-20 text-center border border-slate-100 shadow-xl max-w-lg w-full">
+        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+          <LockKeyhole className="text-red-600" size={32} />
+        </div>
+        <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter mb-4">Access Denied</h2>
+        <p className="text-slate-500 text-sm mb-8 leading-relaxed">Your wholesale cart is encrypted. Please login to view your bulk selections and custom pricing.</p>
+        <button
+          onClick={() => setShowAuthModal(true)}
+          className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg"
+        >
+          Login to Cart
+        </button>
+        <AuthModal isOpen={showAuthModal} onClose={() => { setShowAuthModal(false); checkUser(); }} />
+      </div>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20">
       <Toaster position="bottom-center" />
-      
+
       {/* Responsive Editorial Header */}
       <div className="bg-white border-b border-slate-100 py-8 md:py-12 px-4 mb-6 md:mb-10">
         <div className="max-w-7xl mx-auto">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="px-3 py-1 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest rounded-full">Wholesale Vault</span>
-              <span className="text-slate-300 text-xs font-bold uppercase">{cartItems.length} Items</span>
-            </div>
-            <h1 className="text-4xl md:text-6xl font-black text-slate-900 uppercase tracking-tighter">Your Cart</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="px-3 py-1 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest rounded-full">Wholesale Vault</span>
+            <span className="text-slate-300 text-xs font-bold uppercase">{cartItems.length} Items</span>
+          </div>
+          <h1 className="text-4xl md:text-6xl font-black text-slate-900 uppercase tracking-tighter">Your Cart</h1>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
-        
+
         {/* 1. ITEMS LIST - Mobile Optimized */}
         <div className="lg:col-span-8 space-y-4">
           {cartItems.length > 0 ? cartItems.map((item) => {
@@ -150,21 +167,21 @@ export default function CartPage() {
 
                 {/* Controls & Price Row for Mobile */}
                 <div className="flex items-center justify-between w-full sm:w-auto gap-4 md:gap-8 border-t sm:border-0 pt-4 sm:pt-0">
-                    {/* Quantity Controls */}
-                    <div className="flex items-center gap-3 bg-slate-50 p-1.5 rounded-xl">
-                      <button onClick={() => updateQuantity(item.id, item.quantity - 1, variant.min_quantity)} className="h-7 w-7 bg-white rounded-lg flex items-center justify-center text-slate-400 hover:text-red-600 shadow-sm"><Minus size={12} /></button>
-                      <span className="text-xs font-black text-slate-900 w-6 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, item.quantity + 1, variant.min_quantity)} className="h-7 w-7 bg-slate-900 text-white rounded-lg flex items-center justify-center shadow-md"><Plus size={12} /></button>
-                    </div>
+                  {/* Quantity Controls */}
+                  <div className="flex items-center gap-3 bg-slate-50 p-1.5 rounded-xl">
+                    <button onClick={() => updateQuantity(item.id, item.quantity - 1, variant.min_quantity)} className="h-7 w-7 bg-white rounded-lg flex items-center justify-center text-slate-400 hover:text-red-600 shadow-sm"><Minus size={12} /></button>
+                    <span className="text-xs font-black text-slate-900 w-6 text-center">{item.quantity}</span>
+                    <button onClick={() => updateQuantity(item.id, item.quantity + 1, variant.min_quantity)} className="h-7 w-7 bg-slate-900 text-white rounded-lg flex items-center justify-center shadow-md"><Plus size={12} /></button>
+                  </div>
 
-                    <div className="text-right min-w-[80px]">
-                      <p className="text-[10px] text-slate-300 line-through font-bold">₹{variant.mrp * item.quantity}</p>
-                      <p className="text-lg font-black text-slate-900 tracking-tighter">₹{(variant.wholesale_price * item.quantity).toLocaleString()}</p>
-                    </div>
+                  <div className="text-right min-w-[80px]">
+                    <p className="text-[10px] text-slate-300 line-through font-bold">₹{variant.mrp * item.quantity}</p>
+                    <p className="text-lg font-black text-slate-900 tracking-tighter">₹{(variant.wholesale_price * item.quantity).toLocaleString()}</p>
+                  </div>
 
-                    <button onClick={() => removeItem(item.id)} className="p-2 text-slate-300 hover:text-red-600 transition-colors">
-                      <Trash2 size={18} />
-                    </button>
+                  <button onClick={() => removeItem(item.id)} className="p-2 text-slate-300 hover:text-red-600 transition-colors">
+                    <Trash2 size={18} />
+                  </button>
                 </div>
               </div>
             );
@@ -183,7 +200,7 @@ export default function CartPage() {
             <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter mb-6 flex items-center gap-2">
               Order Summary <PackageCheck className="text-red-600" size={20} />
             </h3>
-            
+
             <div className="space-y-3 mb-8">
               <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 <span>Subtotal</span>
@@ -193,20 +210,24 @@ export default function CartPage() {
                 <span>Bulk GST (18%)</span>
                 <span className="text-slate-900">₹{(subtotal * 0.18).toLocaleString()}</span>
               </div>
+              <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+  <span>Transport Charge</span>
+  <span className="text-slate-900">₹{transportCharge.toLocaleString()}</span>
+</div>
               <div className="h-px bg-slate-100 my-4" />
               <div className="flex justify-between items-end">
                 <span className="text-[10px] font-black uppercase text-slate-400">Grand Total</span>
-                <span className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">₹{(subtotal * 1.18).toLocaleString()}</span>
+                <span className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">₹{(subtotal * 1.18 + transportCharge).toLocaleString()}</span>
               </div>
             </div>
 
-            <Link 
-              href="/Wholesale/checkout" 
+            <Link
+              href="/Wholesale/checkout"
               className="w-full bg-red-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-red-100 hover:bg-slate-900 transition-all flex items-center justify-center gap-2"
             >
               Proceed to Checkout <ArrowRight size={16} />
             </Link>
-            
+
             <p className="text-[8px] text-center text-slate-400 mt-6 font-bold uppercase leading-relaxed">
               * Official Wholesale Invoice will be generated <br /> after payment verification.
             </p>

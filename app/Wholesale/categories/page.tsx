@@ -115,9 +115,8 @@ export default function CategoriesPage() {
             <button
               key={cat.id}
               onClick={() => scrollToSection(cat.id)}
-              className={`text-xs font-black uppercase tracking-widest px-4 py-2 rounded-full transition-all ${
-                activeCategory === cat.id ? "bg-red-600 text-white" : "bg-slate-100 text-slate-500"
-              }`}
+              className={`text-xs font-black uppercase tracking-widest px-4 py-2 rounded-full transition-all ${activeCategory === cat.id ? "bg-red-600 text-white" : "bg-slate-100 text-slate-500"
+                }`}
             >
               {cat.name}
             </button>
@@ -137,11 +136,10 @@ export default function CategoriesPage() {
                   <button
                     key={cat.id}
                     onClick={() => scrollToSection(cat.id)}
-                    className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all ${
-                      activeCategory === cat.id
+                    className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeCategory === cat.id
                         ? "bg-white text-red-600 shadow-sm ring-1 ring-slate-200"
                         : "text-slate-500 hover:text-slate-900"
-                    }`}
+                      }`}
                   >
                     {cat.name}
                   </button>
@@ -156,7 +154,7 @@ export default function CategoriesPage() {
               .filter((category) => category.subcategories && category.subcategories.length > 0)
               .map((category) => (
                 <section key={category.id} id={category.id} className="scroll-mt-20 md:scroll-mt-32">
-                  
+
                   {/* CATEGORY HEADER */}
                   <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
                     <div className="space-y-1">
@@ -164,7 +162,7 @@ export default function CategoriesPage() {
                         <div className="h-1 w-6 bg-red-600 rounded-full" />
                         <span className="text-red-600 font-black text-[10px] uppercase tracking-widest">Explore</span>
                       </div>
-                      <h2 className="text-3xl md:text-6xl font-black text-slate-900 tracking-tight lowercase">
+                      <h2 className="text-3xl md:text-6xl font-black text-slate-900 tracking-tight ">
                         {category.name}<span className="text-red-600">.</span>
                       </h2>
                     </div>

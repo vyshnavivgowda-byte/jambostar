@@ -115,7 +115,7 @@ useEffect(() => {
                     <input
                         type="text"
                         placeholder="Search Library..."
-                        className="w-full bg-slate-100 rounded-2xl py-3 pl-12 pr-4 text-sm font-bold outline-none focus:ring-2 focus:ring-red-500/10 transition-all"
+                        className="w-full text-black bg-slate-100 rounded-2xl py-3 pl-12 pr-4 text-sm font-bold outline-none focus:ring-2 focus:ring-red-500/10 transition-all"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />

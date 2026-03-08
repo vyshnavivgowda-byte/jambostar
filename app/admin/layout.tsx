@@ -45,9 +45,9 @@ export default function AdminHeader({
   const menuItems = [
     { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
     { name: "Main Categories", path: "/admin/categories", icon: Boxes },
-    { name: "Categories", path: "/admin/subcategories", icon: Layers },
+    { name: "Sub Categories", path: "/admin/subcategories", icon: ListTree  },
     // --- NEW TAB ADDED BELOW ---
-    { name: "SubCategories", path: "/admin/innercategories", icon: ListTree },
+    //{ name: "SubCategories", path: "/admin/innercategories", icon: ListTree },
     // ---------------------------
     { name: "Add Product", path: "/admin/add-product", icon: PackagePlus },
     { name: "Update Price & Stock", path: "/admin/update-stock", icon: Edit },

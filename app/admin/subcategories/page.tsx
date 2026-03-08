@@ -195,7 +195,7 @@ export default function SubcategoriesPage() {
             <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
                 <div className="text-center md:text-left">
                     <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">
-                        Categories <span className="text-red-500">Studio</span>
+                        Sub Categories <span className="text-red-500">Studio</span>
                     </h1>
                     <p className="text-gray-500 mt-1">Manage and organize secondary collections</p>
                 </div>
@@ -220,7 +220,7 @@ export default function SubcategoriesPage() {
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-red-400 group-focus-within:text-red-600 transition-colors" size={20} />
                         <input
                             type="text"
-                            placeholder="Search Categories..."
+                            placeholder="Search Sub Categories..."
                             className="w-full pl-12 pr-4 py-3 bg-white text-gray-900 border border-red-100 rounded-2xl focus:ring-4 focus:ring-red-50 outline-none shadow-sm transition-all"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -314,7 +314,7 @@ export default function SubcategoriesPage() {
                         {/* Header */}
                         <div className="bg-red-50 px-8 py-6 flex justify-between items-center border-b border-red-100">
                             <h2 className="text-xl font-bold text-gray-800">
-                                {editingId ? "Update Category" : "Create Category"}
+                                {editingId ? "Update Sub Category" : "Create Sub Category"}
                             </h2>
                             <button
                                 type="button"
@@ -373,7 +373,7 @@ export default function SubcategoriesPage() {
                             {/* Title Input (FIXED VISIBILITY) */}
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-gray-500 uppercase">
-                                    Category Title
+                                   Sub Category Title
                                 </label>
                                 <input
                                     type="text"
@@ -388,7 +388,7 @@ export default function SubcategoriesPage() {
                             {/* Category Select (FIXED VISIBILITY) */}
                             <div className="space-y-2 relative">
                                 <label className="text-xs font-bold text-gray-500 uppercase">
-                                    Parent Category
+                                    Main Category
                                 </label>
 
                                 <select

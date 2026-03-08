@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import toast, { Toaster } from "react-hot-toast";
 import {
   Plus,
   Edit3,
@@ -12,7 +13,7 @@ import {
   ChevronRight,
   Package,
   Search,
-  Filter,
+  Star,
   X
 } from "lucide-react";
 
@@ -22,6 +23,7 @@ interface Product {
   brand: string;
   category_id: string;
   subcategory_id: string;
+  is_featured: boolean; // Added for Home Page preference
   product_images: { image_url: string }[];
   product_variants: { variant: string; unit: string }[];
 }
@@ -46,16 +48,10 @@ export default function ProductGalleryPage() {
 
   const fetchInitialData = async () => {
     setLoading(true);
-
-    // 1. Fetch Categories
     const { data: catData } = await supabase.from("categories").select("*").order("name");
     setCategories(catData || []);
-
-    // 2. Fetch All Subcategories
     const { data: subData } = await supabase.from("subcategories").select("*").order("title");
     setSubcategories(subData || []);
-
-    // 3. Fetch Products
     await fetchProducts();
     setLoading(false);
   };
@@ -64,18 +60,19 @@ export default function ProductGalleryPage() {
     const { data, error } = await supabase
       .from("products")
       .select(`
-    id,
-    name,
-    brand,
-    category_id,
-    subcategory_id,
-    product_images!inner(image_url),
-    product_variants!inner(variant, unit)
-  `)
+        id,
+        name,
+        brand,
+        category_id,
+        subcategory_id,
+        is_featured,
+        product_images(image_url),
+        product_variants(variant, unit)
+      `)
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Supabase Error:", error.message, error.details);
+      console.error("Supabase Error:", error.message);
     } else {
       setProducts(data || []);
       const indices: Record<string, number> = {};
@@ -84,15 +81,34 @@ export default function ProductGalleryPage() {
     }
   };
 
+  // --- NEW: Toggle Featured Status ---
+  const toggleFeatured = async (id: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    
+    // Optimistic UI Update
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, is_featured: newStatus } : p));
+
+    const { error } = await supabase
+      .from("products")
+      .update({ is_featured: newStatus })
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Update failed");
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, is_featured: currentStatus } : p));
+    } else {
+      toast.success(newStatus ? "Added to Home Page" : "Removed from Home Page");
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this product?")) {
       const { error } = await supabase.from("products").delete().eq("id", id);
-      if (error) alert(error.message);
+      if (error) toast.error(error.message);
       else fetchProducts();
     }
   };
 
-  // UI Helpers for Image Slider
   const nextImg = (e: React.MouseEvent, id: string, max: number) => {
     e.stopPropagation();
     setCurrentImageIndex(prev => ({ ...prev, [id]: (prev[id] + 1) % max }));
@@ -103,16 +119,13 @@ export default function ProductGalleryPage() {
     setCurrentImageIndex(prev => ({ ...prev, [id]: (prev[id] - 1 + max) % max }));
   };
 
-  // Logic to filter subcategories based on chosen category
   const activeSubcategories = subcategories.filter(sub => sub.category_id === selectedCat);
 
-  // --- FINAL FILTERING LOGIC ---
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.brand.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCat = selectedCat === "" || p.category_id === selectedCat;
     const matchesSub = selectedSub === "" || p.subcategory_id === selectedSub;
-
     return matchesSearch && matchesCat && matchesSub;
   });
 
@@ -124,14 +137,14 @@ export default function ProductGalleryPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-6">
-
+      <Toaster position="bottom-center" />
+      
       <div className="max-w-10xl mx-auto space-y-8">
-
         {/* --- HEADER --- */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Inventory</h1>
-            <p className="text-slate-500 font-medium">Manage variants, categories and photos</p>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight uppercase">Inventory</h1>
+            <p className="text-slate-500 font-medium">Toggle Home Page visibility and manage stock</p>
           </div>
 
           <button
@@ -144,15 +157,13 @@ export default function ProductGalleryPage() {
 
         {/* --- FILTER BAR --- */}
         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-end">
-
-          {/* Search */}
           <div className="flex-1 w-full space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Search Keywords</label>
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
                 type="text"
-                placeholder="Product name or brand..."
+                placeholder="Search products..."
                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-red-500 font-bold text-slate-700"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -160,43 +171,20 @@ export default function ProductGalleryPage() {
             </div>
           </div>
 
-          {/* Category Filter */}
           <div className="w-full md:w-64 space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Category</label>
             <select
               className="w-full p-3 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-red-500 font-bold text-slate-700 appearance-none"
               value={selectedCat}
-              onChange={(e) => {
-                setSelectedCat(e.target.value);
-                setSelectedSub(""); // reset subcat when cat changes
-              }}
+              onChange={(e) => { setSelectedCat(e.target.value); setSelectedSub(""); }}
             >
               <option value="">All Categories</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
-          {/* SubCategory Filter */}
-          <div className="w-full md:w-64 space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Sub-Category</label>
-            <select
-              disabled={!selectedCat}
-              className="w-full p-3 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-red-500 font-bold text-slate-700 appearance-none disabled:opacity-50"
-              value={selectedSub}
-              onChange={(e) => setSelectedSub(e.target.value)}
-            >
-              <option value="">All Sub-Categories</option>
-              {activeSubcategories.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
-            </select>
-          </div>
-
-          {/* Clear Button */}
           {(selectedCat || selectedSub || searchTerm) && (
-            <button
-              onClick={clearFilters}
-              className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
-              title="Clear Filters"
-            >
+            <button onClick={clearFilters} className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
               <X size={20} />
             </button>
           )}
@@ -210,8 +198,7 @@ export default function ProductGalleryPage() {
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-24 bg-white rounded-[3rem] border border-dashed border-slate-200">
             <Package size={60} className="mx-auto text-slate-200 mb-4" />
-            <h3 className="text-xl font-bold text-slate-400">No matches found</h3>
-            <p className="text-slate-400 text-sm">Try adjusting your filters or search keywords</p>
+            <h3 className="text-xl font-bold text-slate-400">No products found</h3>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
@@ -221,7 +208,19 @@ export default function ProductGalleryPage() {
               const hasImages = imagesList.length > 0;
 
               return (
-                <div key={product.id} className="group bg-white rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col overflow-hidden">
+                <div key={product.id} className="group bg-white rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col overflow-hidden relative">
+                  
+                  {/* --- STAR TOGGLE (Home Page Selection) --- */}
+                  <button 
+                    onClick={() => toggleFeatured(product.id, product.is_featured)}
+                    className={`absolute top-4 right-4 z-20 p-3 rounded-full transition-all duration-300 ${
+                      product.is_featured 
+                        ? "bg-amber-400 text-white shadow-lg scale-110" 
+                        : "bg-white/80 text-slate-400 backdrop-blur-md hover:text-amber-500 hover:bg-white"
+                    }`}
+                  >
+                    <Star size={18} fill={product.is_featured ? "currentColor" : "none"} />
+                  </button>
 
                   {/* Image Slider Area */}
                   <div className="relative h-64 bg-slate-50 overflow-hidden">
@@ -235,15 +234,10 @@ export default function ProductGalleryPage() {
                         />
                         {imagesList.length > 1 && (
                           <div className="absolute inset-0 flex items-center justify-between px-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={(e) => prevImg(e, product.id, imagesList.length)} className="p-2  rounded-full shadow-lg bg-red-600 hover:text-white transition-all"><ChevronLeft size={16} /></button>
-                            <button onClick={(e) => nextImg(e, product.id, imagesList.length)} className="p-2  rounded-full shadow-lg bg-red-600 hover:text-white transition-all"><ChevronRight size={16} /></button>
+                            <button onClick={(e) => prevImg(e, product.id, imagesList.length)} className="p-2 rounded-full bg-white shadow-lg hover:bg-red-600 hover:text-white transition-all"><ChevronLeft size={16} /></button>
+                            <button onClick={(e) => nextImg(e, product.id, imagesList.length)} className="p-2 rounded-full bg-white shadow-lg hover:bg-red-600 hover:text-white transition-all"><ChevronRight size={16} /></button>
                           </div>
                         )}
-                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                          {imagesList.map((_, i) => (
-                            <div key={i} className={`h-1.5 rounded-full transition-all ${i === currentIdx ? 'bg-red-600 w-4' : 'bg-white/40 w-1.5'}`} />
-                          ))}
-                        </div>
                       </>
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-slate-300 italic"><Package size={40} /></div>
@@ -284,11 +278,6 @@ export default function ProductGalleryPage() {
           </div>
         )}
       </div>
-
-      <style jsx global>{`
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
     </div>
   );
 }

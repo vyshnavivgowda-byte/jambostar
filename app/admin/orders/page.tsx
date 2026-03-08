@@ -181,8 +181,8 @@ await fetch("/api/send-order-email", {
         ];
 
         const rows: any[] = [];
-        activeOrders.forEach(order => {
-            const deliveryAddress = order.address_snapshot || "N/A";
+activeOrders.forEach((order: any) => {          
+      const deliveryAddress = order.address_snapshot || "N/A";
             // Calculate the running total of remaining balance
             totalRemainingBalance += Number(order.remaining_balance || 0);
 

@@ -195,8 +195,7 @@ export default function HomePage() {
         const recentCategories = categories
           .filter(cat => cat.id !== otherCategory?.id)
           // Sort descending: change 'created_at' to 'id' if you don't have a date string
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
+.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         // 3. Take top 3 recent + append "Other" at the end
         const displayCategories = recentCategories.slice(0, 3);
         

@@ -8,7 +8,7 @@ import {
   Layers,
   ListTree, // Added for Inner Categories
   PackagePlus,
-  Edit,
+  Edit,Truck,
   Users,
   ShoppingCart,
   ImageIcon,
@@ -53,6 +53,9 @@ export default function AdminHeader({
     { name: "Update Price & Stock", path: "/admin/update-stock", icon: Edit },
     { name: "Wholesale Management", path: "/admin/wholesale", icon: Users },
     { name: "Orders", path: "/admin/orders", icon: ShoppingCart },
+    // --- DELIVERY ALLOTMENT TAB ADDED HERE ---
+    { name: "Delivery Allotment", path: "/admin/delivery", icon: Truck },
+    // -----------------------------------------
     { name: "Banner Management", path: "/admin/banner", icon: ImageIcon },
   ];
 

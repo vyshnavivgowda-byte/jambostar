@@ -73,7 +73,8 @@ export default function WholesaleOrders() {
                 name: "Jumbo Star Wholesale",
                 description: `Settling Order ${order.order_id_custom}`,
                 handler: async function (response: any) {
-                    const { error } = await supabase
+                    // 1. Update Database
+                    const { error: dbError } = await supabase
                         .from("orders")
                         .update({
                             payment_status: 'paid',
@@ -81,15 +82,41 @@ export default function WholesaleOrders() {
                             remaining_balance: 0,
                             payment_id: response.razorpay_payment_id,
                             payment_type: 'full',
-                            balance_due_date: null 
+                            balance_due_date: null
                         })
                         .eq('id', order.id);
 
-                    if (error) {
+                    if (dbError) {
+                        console.error("DB Update Error:", dbError);
                         toast.error("Update failed. Contact support.");
                     } else {
                         toast.success("Order Fully Settled!");
-                        fetchOrders();
+
+                        // 2. Trigger Settlement Email
+                        try {
+                            const userStr = localStorage.getItem("wholesale_user");
+                            const user = userStr ? JSON.parse(userStr) : null;
+
+                            await fetch("/api/send-order-email", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    email: user?.email || order.user_email, // Fallback to order email if user state is lost
+                                    orderId: order.order_id_custom,
+                                    status: "Order Fully Paid",
+                                    items: order.items, // Already exists in the order object
+                                    total: fullAmount,
+                                    paid: fullAmount,   // Now fully paid
+                                    remaining: 0,       // Zero balance
+                                    address: order.address_snapshot,
+                                }),
+                            });
+                        } catch (emailErr) {
+                            console.error("Settlement Email failed:", emailErr);
+                            // We don't block the UI for email failures since payment/DB succeeded
+                        }
+
+                        fetchOrders(); // Refresh the list
                     }
                     setProcessingId(null);
                 },
@@ -103,10 +130,10 @@ export default function WholesaleOrders() {
             const rzp = new (window as any).Razorpay(options);
             rzp.open();
         } catch (err) {
+            console.error("Payment initialization error:", err);
             setProcessingId(null);
         }
     };
-
     if (loading) return (
         <div className="h-screen flex flex-col items-center justify-center bg-white">
             <Loader2 className="animate-spin text-red-600 mb-4" size={32} />
@@ -122,8 +149,8 @@ export default function WholesaleOrders() {
             {/* Header Area */}
             <div className="bg-white border-b border-slate-100 pt-10 pb-8 px-4">
                 <div className="max-w-5xl mx-auto">
-                    <button 
-                        onClick={() => router.back()} 
+                    <button
+                        onClick={() => router.back()}
                         className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6"
                     >
                         <ArrowLeft size={14} /> Back to sourcing
@@ -199,7 +226,7 @@ export default function WholesaleOrders() {
                                             <span className="text-[9px] font-black uppercase tracking-widest">Collected</span>
                                             <span className="text-xs font-bold">₹{displayPaid.toLocaleString()}</span>
                                         </div>
-                                        
+
                                         <div className="h-px bg-white/10" />
 
                                         <div className="py-2">

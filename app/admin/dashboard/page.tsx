@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { 
   LayoutDashboard, Boxes, Layers, ListTree, PackagePlus, 
   Edit, Users, ShoppingCart, ImageIcon, Package, ChevronRight,
-  TrendingUp, ArrowUpRight
+  TrendingUp, ArrowUpRight,Truck
 } from 'lucide-react';
 
 // --- Data Fetching ---
@@ -77,6 +77,11 @@ export default async function AdminDashboard() {
     { name: "Sub Categories", path: "/admin/subcategories", icon: Layers, color: "text-orange-500" },
     { name: "Add Product", path: "/admin/add-product", icon: PackagePlus, color: "text-emerald-500" },
     { name: "Stock Control", path: "/admin/update-stock", icon: Edit, color: "text-amber-500" },
+    
+    // --- NEW DELIVERY TAB WITH COLOR ---
+    { name: "Delivery Allotment", path: "/admin/delivery", icon: Truck, color: "text-rose-500" },
+    // ------------------------------------
+
     { name: "Wholesale", path: "/admin/wholesale", icon: Users, color: "text-cyan-500" },
     { name: "Orders", path: "/admin/orders", icon: ShoppingCart, color: "text-red-500" },
     { name: "Banners", path: "/admin/banner", icon: ImageIcon, color: "text-indigo-500" },

@@ -298,7 +298,7 @@ activeOrders.forEach((order: any) => {
                                 <td className="px-8 py-6">
                                     {/* Calculate total remaining across all active orders for this client */}
                                     <div className="text-sm font-black text-red-600">
-                                        ₹{client.all_orders.reduce((acc, o) => acc + (Number(o.remaining_balance) || 0), 0).toLocaleString()}
+                                    client.all_orders.reduce((acc: number, o: any) => acc + (Number(o.remaining_balance) || 0), 0)
                                     </div>
                                 </td>
                                 <td className="px-8 py-6 text-right">

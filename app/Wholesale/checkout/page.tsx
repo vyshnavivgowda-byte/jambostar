@@ -17,6 +17,8 @@ export default function CheckoutPage() {
     const [loading, setLoading] = useState(true);
     const [payLoading, setPayLoading] = useState(false);
     const [transportCharge, setTransportCharge] = useState(0);
+    const [platformCharge, setPlatformCharge] = useState(80);
+    const [handlingCharge, setHandlingCharge] = useState(150);
     // Data States
     const [cartItems, setCartItems] = useState<any[]>([]);
     const [dbAddresses, setDbAddresses] = useState<any[]>([]);
@@ -112,7 +114,12 @@ export default function CheckoutPage() {
 
             const gst = calcSubtotal * 0.18;
 
-            const grandTotal = calcSubtotal + gst + transport;
+            const grandTotal =
+                calcSubtotal +
+                gst +
+                transport +
+                platformCharge +
+                handlingCharge;
 
             setSubtotal(calcSubtotal);
             setTotalWithGst(grandTotal);
@@ -308,6 +315,43 @@ export default function CheckoutPage() {
         }
     };
 
+    const handleInputChange = (e: any) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleAddressSubmit = async () => {
+        try {
+            const userStr = localStorage.getItem("wholesale_user");
+            const user = JSON.parse(userStr || "{}");
+
+            if (!formData.full_name || !formData.phone || !formData.street_address || !formData.city) {
+                toast.error("Please fill all required fields");
+                return;
+            }
+
+            const { data, error } = await supabase
+                .from("addresses")
+                .insert([{
+                    user_id: user.id,
+                    ...formData
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            toast.success("Address added!");
+            setDbAddresses(prev => [...prev, data]);
+            setSelectedAddressId(data.id);
+            setSelectedAddressText(`${data.street_address}, ${data.city}`);
+            setShowAddressForm(false);
+            setFormData({ full_name: "", phone: "", street_address: "", city: "", state: "", pincode: "" });
+        } catch (err: any) {
+            toast.error(err.message);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-slate-50/50 pb-20 font-sans">
             <Toaster position="top-right" />
@@ -351,18 +395,52 @@ export default function CheckoutPage() {
 
                         {showAddressForm ? (
                             <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 animate-in fade-in zoom-in-95 duration-300">
-                                {/* Address Form Logic remains same */}
                                 <p className="text-[10px] font-black text-slate-400 uppercase mb-4">Add New Location</p>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <input placeholder="Full Name" className="col-span-2 p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold" />
-                                    <input placeholder="Phone" className="p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold" />
-                                    <input placeholder="City" className="p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold" />
-                                    <textarea placeholder="Full Address" className="col-span-2 p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold h-20" />
+                                    <input
+                                        name="full_name"
+                                        value={formData.full_name}
+                                        onChange={handleInputChange}
+                                        placeholder="Full Name"
+                                        className="col-span-2 p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold"
+                                    />
+                                    <input
+                                        name="phone"
+                                        value={formData.phone}
+                                        onChange={handleInputChange}
+                                        placeholder="Phone"
+                                        className="p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold"
+                                    />
+                                    <input
+                                        name="city"
+                                        value={formData.city}
+                                        onChange={handleInputChange}
+                                        placeholder="City"
+                                        className="p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold"
+                                    />
+                                    <textarea
+                                        name="street_address"
+                                        value={formData.street_address}
+                                        onChange={handleInputChange}
+                                        placeholder="Full Street Address"
+                                        className="col-span-2 p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold h-20"
+                                    />
+                                    <button
+                                        onClick={handleAddressSubmit}
+                                        className="col-span-2 bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-colors"
+                                    >
+                                        Save & Use Address
+                                    </button>
                                 </div>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {[...profileAddresses, ...dbAddresses.map(a => ({ id: a.id, type: 'Custom', addr: `${a.street_address}, ${a.city}`, icon: <MapPin size={16} /> }))].map((item) => (
+                                {[...profileAddresses, ...dbAddresses.map(a => ({
+                                    id: a.id,
+                                    type: 'Custom',
+                                    addr: `${a.street_address}, ${a.city}`,
+                                    icon: <MapPin size={16} />
+                                }))].map((item) => (
                                     <div
                                         key={item.id}
                                         onClick={() => { setSelectedAddressId(item.id); setSelectedAddressText(item.addr); }}
@@ -435,6 +513,15 @@ export default function CheckoutPage() {
                                 <div className="flex justify-between items-end">
                                     <div className="text-xs font-bold text-slate-400 uppercase">Transport Charge</div>
                                     <div className="text-sm font-black">₹{transportCharge.toLocaleString()}</div>
+                                </div>
+                                <div className="flex justify-between items-end">
+                                    <div className="text-xs font-bold text-slate-400 uppercase">Platform Fee</div>
+                                    <div className="text-sm font-black">₹{platformCharge.toLocaleString()}</div>
+                                </div>
+
+                                <div className="flex justify-between items-end">
+                                    <div className="text-xs font-bold text-slate-400 uppercase">Handling Charge</div>
+                                    <div className="text-sm font-black">₹{handlingCharge.toLocaleString()}</div>
                                 </div>
                                 <div className="h-px bg-slate-800 my-4" />
                                 <div className="flex justify-between items-end">

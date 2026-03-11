@@ -15,11 +15,20 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
     const [loading, setLoading] = useState(false);
     const [checkingEmail, setCheckingEmail] = useState(false);
     const [generatedId, setGeneratedId] = useState("");
-
     const [formData, setFormData] = useState({
-        email: "", phone: "", password: "", confirmPassword: "",
-        companyName: "", gstNumber: "", firstName: "", lastName: "",
-        regAddress: "", shopAddress: "", mapLink: ""
+        email: "",
+        phone: "",
+        password: "",
+
+        companyName: "",
+        gstNumber: "",
+
+        ownerName: "",
+        ownerDob: "",
+
+        regAddress: "",
+        shopAddress: "",
+        mapLink: ""
     });
 
     if (!isOpen) return null;
@@ -30,41 +39,86 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        const upperFields = ["gstNumber", "firstName", "lastName", "companyName"];
+        const upperFields = ["gstNumber", "companyName", "ownerName"];
         setFormData(prev => ({
             ...prev,
             [name]: upperFields.includes(name) ? value.toUpperCase() : value
         }));
     };
 
-    const handleLogin = async () => {
-        if (!validateEmail(formData.email)) return toast.error("Invalid email format");
-        setLoading(true);
+    const checkExistingUser = async () => {
+        setCheckingEmail(true);
+
         try {
             const { data, error } = await supabase
-                .from('wholesale_users')
-                .select('*')
-                .eq('email', formData.email.toLowerCase().trim())
-                .eq('password_hash', formData.password)
-                .single();
+                .from("wholesale_users")
+                .select("email, phone")
+                .or(`email.eq.${formData.email.toLowerCase()},phone.eq.${formData.phone}`);
 
-            if (error || !data) throw new Error("Invalid email or password");
+            if (error) throw error;
 
-            if (data.status === 'pending') {
+            if (data && data.length > 0) {
+                const emailExists = data.some(u => u.email === formData.email.toLowerCase());
+                const phoneExists = data.some(u => u.phone === formData.phone);
+
+                if (emailExists) {
+                    toast.error("Email already registered");
+                    return false;
+                }
+
+                if (phoneExists) {
+                    toast.error("Phone number already registered");
+                    return false;
+                }
+            }
+
+            return true;
+
+        } catch (err: any) {
+            toast.error(err.message);
+            return false;
+        } finally {
+            setCheckingEmail(false);
+        }
+    };
+
+    const handleLogin = async () => {
+        setLoading(true);
+
+        try {
+            const { data, error } = await supabase
+                .from("wholesale_users")
+                .select("*")
+                .eq("phone", formData.phone)
+                .maybeSingle();   // ✅ FIX
+
+            if (error) throw error;
+
+            if (!data) {
+                toast.error("Phone number not registered");
+                return;
+            }
+
+            if (data.status === "pending") {
                 toast.error("Account Pending Verification");
                 return;
             }
 
-            // Save session
+            if (data.status === "rejected") {
+                toast.error("Application Rejected");
+                return;
+            }
+
             localStorage.setItem("wholesale_user", JSON.stringify(data));
+
+            // notify navbar/header
             window.dispatchEvent(new Event("wholesale_login"));
 
-            toast.success("Login Successful");
+            toast.success("Login successful");
+
             onClose();
-            
-            // Navigate to Wholesale Home
             router.push("/Wholesale/home");
-            
+
         } catch (err: any) {
             toast.error(err.message);
         } finally {
@@ -74,27 +128,37 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
 
     const handleRegister = async () => {
         setLoading(true);
+
         try {
             const { data, error } = await supabase
-                .from('wholesale_users')
-                .insert([{
-                    email: formData.email.toLowerCase(),
-                    phone: formData.phone,
-                    password_hash: formData.password,
-                    company_name: formData.companyName,
-                    gst_number: formData.gstNumber,
-                    first_name: formData.firstName,
-                    last_name: formData.lastName,
-                    registered_address: formData.regAddress,
-                    shop_address: formData.shopAddress,
-                    google_maps_link: formData.mapLink,
-                    status: 'pending'
-                }])
-                .select('business_id').single();
+                .from("wholesale_users")
+                .insert([
+                    {
+                        email: formData.email.toLowerCase(),
+                        phone: formData.phone,
+                        password_hash: formData.password,
+
+                        company_name: formData.companyName,
+                        gst_number: formData.gstNumber,
+
+                        owner_name: formData.ownerName,
+                        owner_dob: formData.ownerDob || null,
+
+                        registered_address: formData.regAddress,
+                        shop_address: formData.shopAddress,
+                        google_maps_link: formData.mapLink,
+
+                        status: "pending"
+                    }
+                ])
+                .select("business_id")
+                .single();
 
             if (error) throw error;
+
             setGeneratedId(data.business_id);
             setIsSubmitted(true);
+
             toast.success("Application submitted!");
         } catch (err: any) {
             toast.error(err.message);
@@ -122,7 +186,7 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
                     {/* Header */}
                     <div className="text-center mb-10">
                         <Image src="/logo.png" alt="Logo" width={120} height={50} className="mx-auto mb-6 object-contain" />
-                        
+
                         {!isSubmitted && (
                             <>
                                 <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">
@@ -156,8 +220,15 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
                         <div className="space-y-4">
                             {isLogin ? (
                                 <div className="space-y-4 animate-in fade-in duration-500">
-                                    <Input name="email" icon={<Mail size={18} />} type="email" placeholder="Business Email" onChange={handleChange} value={formData.email} />
-                                    <Input name="password" icon={<Lock size={18} />} type="password" placeholder="Password" onChange={handleChange} value={formData.password} />
+                                    <Input
+                                        name="phone"
+                                        icon={<Phone size={18} />}
+                                        type="tel"
+                                        placeholder="Registered Mobile Number"
+                                        onChange={handleChange}
+                                        value={formData.phone}
+                                        maxLength={10}
+                                    />
                                     <button onClick={handleLogin} disabled={loading} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-red-600 transition-all shadow-xl active:scale-95 disabled:bg-slate-300">
                                         {loading ? <Loader2 className="animate-spin" size={20} /> : "Authorize Access"}
                                     </button>
@@ -176,33 +247,133 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
                                             <Input name="email" icon={<Mail size={18} />} type="email" placeholder="Work Email *" onChange={handleChange} value={formData.email} />
                                             <Input name="phone" icon={<Phone size={18} />} type="tel" placeholder="Mobile Number *" onChange={handleChange} value={formData.phone} maxLength={10} />
                                             <Input name="password" icon={<Lock size={18} />} type="password" placeholder="Create Password *" onChange={handleChange} value={formData.password} />
-                                            <button disabled={!isStep1Valid} onClick={() => setStep(2)} className="w-full py-4 bg-red-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50">
-                                                Next Details <ArrowRight size={16} />
+                                            <button
+                                                disabled={!isStep1Valid || checkingEmail}
+                                                onClick={async () => {
+                                                    const ok = await checkExistingUser();
+                                                    if (ok) setStep(2);
+                                                }}
+                                                className="w-full py-4 bg-red-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                                            >
+                                                {checkingEmail ? (
+                                                    <Loader2 className="animate-spin" size={18} />
+                                                ) : (
+                                                    <>
+                                                        Next Details <ArrowRight size={16} />
+                                                    </>
+                                                )}
                                             </button>
                                         </div>
                                     )}
 
                                     {step === 2 && (
                                         <div className="space-y-4 animate-in slide-in-from-right-4">
-                                            <Input name="companyName" icon={<Building2 size={18} />} type="text" placeholder="Company Name (GST) *" onChange={handleChange} value={formData.companyName} />
-                                            <Input name="gstNumber" icon={<CheckCircle2 size={18} />} type="text" placeholder="GSTIN Number *" onChange={handleChange} value={formData.gstNumber} maxLength={15} />
+
+                                            <Input
+                                                name="companyName"
+                                                icon={<Building2 size={18} />}
+                                                type="text"
+                                                placeholder="Shop Name *"
+                                                onChange={handleChange}
+                                                value={formData.companyName}
+                                            />
+
+                                            <Input
+                                                name="gstNumber"
+                                                icon={<CheckCircle2 size={18} />}
+                                                type="text"
+                                                placeholder="GST Number *"
+                                                onChange={handleChange}
+                                                value={formData.gstNumber}
+                                                maxLength={15}
+                                            />
+
+                                            <Input
+                                                name="ownerName"
+                                                icon={<User size={18} />}
+                                                type="text"
+                                                placeholder="Owner Name *"
+                                                onChange={handleChange}
+                                                value={formData.ownerName}
+                                            />
+
+                                            <Input
+                                                name="ownerDob"
+                                                icon={<User size={18} />}
+                                                type="date"
+                                                placeholder="Date of Birth"
+                                                onChange={handleChange}
+                                                value={formData.ownerDob}
+                                            />
+
                                             <div className="grid grid-cols-2 gap-3">
-                                                <button onClick={() => setStep(1)} className="py-4 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all flex items-center justify-center"><ArrowLeft size={20} /></button>
-                                                <button disabled={!isStep2Valid} onClick={() => setStep(3)} className="py-4 bg-red-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs disabled:opacity-50">Continue</button>
+
+                                                <button
+                                                    onClick={() => setStep(1)}
+                                                    className="py-4 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all flex items-center justify-center"
+                                                >
+                                                    <ArrowLeft size={20} />
+                                                </button>
+
+                                                <button
+                                                    onClick={() => setStep(3)}
+                                                    className="py-4 bg-red-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs"
+                                                >
+                                                    Continue
+                                                </button>
+
                                             </div>
+
                                         </div>
                                     )}
 
                                     {step === 3 && (
                                         <div className="space-y-4 animate-in slide-in-from-right-4">
-                                            <textarea name="shopAddress" onChange={handleChange} value={formData.shopAddress} className="w-full p-4 bg-slate-50 border-2 border-slate-100 focus:border-red-500/30 rounded-2xl outline-none font-bold text-sm h-28 resize-none" placeholder="Delivery / Shop Address *" />
-                                            <Input name="mapLink" icon={<Globe size={18} />} type="url" placeholder="Google Maps Link *" onChange={handleChange} value={formData.mapLink} />
+
+                                            <textarea
+                                                name="regAddress"
+                                                onChange={handleChange}
+                                                value={formData.regAddress}
+                                                className="w-full p-4 bg-slate-50 border-2 border-slate-100 focus:border-red-500/30 rounded-2xl outline-none font-bold text-sm h-24 resize-none"
+                                                placeholder="Registered Address *"
+                                            />
+
+                                            <textarea
+                                                name="shopAddress"
+                                                onChange={handleChange}
+                                                value={formData.shopAddress}
+                                                className="w-full p-4 bg-slate-50 border-2 border-slate-100 focus:border-red-500/30 rounded-2xl outline-none font-bold text-sm h-24 resize-none"
+                                                placeholder="Shop / Delivery Address *"
+                                            />
+
+                                            <Input
+                                                name="mapLink"
+                                                icon={<Globe size={18} />}
+                                                type="url"
+                                                placeholder="Google Maps Link *"
+                                                onChange={handleChange}
+                                                value={formData.mapLink}
+                                            />
+
                                             <div className="flex gap-3">
-                                                <button onClick={() => setStep(2)} className="p-4 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all"><ArrowLeft size={20} /></button>
-                                                <button onClick={handleRegister} disabled={loading} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl flex items-center justify-center gap-2">
+
+                                                <button
+                                                    onClick={() => setStep(2)}
+                                                    className="p-4 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all"
+                                                >
+                                                    <ArrowLeft size={20} />
+                                                </button>
+
+                                                <button
+                                                    onClick={handleRegister}
+                                                    disabled={loading}
+                                                    className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl flex items-center justify-center gap-2"
+                                                >
                                                     {loading ? <Loader2 className="animate-spin" size={18} /> : "Submit Application"}
                                                 </button>
+
                                             </div>
+
                                         </div>
                                     )}
                                 </div>

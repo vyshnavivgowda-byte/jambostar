@@ -1,14 +1,15 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
     Search, Package, Building2, MapPin, Calendar,
-    RefreshCcw, ChevronRight, Filter, History, ShoppingBag
+    RefreshCcw, ChevronRight, Filter, History, ShoppingBag,
+    FileText, X, Phone, IndianRupee
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-
 
 export default function AdminOrdersPage() {
     const [orders, setOrders] = useState<any[]>([]);
@@ -17,112 +18,131 @@ export default function AdminOrdersPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedClient, setSelectedClient] = useState<any>(null);
     const [updating, setUpdating] = useState(false);
-
+    const [returns, setReturns] = useState<any[]>([]);
+    const [activeTab, setActiveTab] = useState("orders");
     useEffect(() => { fetchOrders(); }, []);
+
+    useEffect(() => {
+        if (selectedClient) {
+            fetchReturns(selectedClient.business_id);
+        }
+    }, [selectedClient]);
+
+    const fetchReturns = async (businessId: string) => {
+        const { data, error } = await supabase
+            .from("returns")
+            .select("*")
+            .eq("business_id", businessId)
+            .order("created_at", { ascending: false });
+
+        if (!error) {
+            setReturns(data || []);
+        }
+    };
 
     const fetchOrders = async () => {
         try {
             setLoading(true);
-            const { data: ordersData, error: oError } = await supabase
-                .from("orders").select('*').order("created_at", { ascending: false });
-            if (oError) throw oError;
 
-            const { data: usersData, error: uError } = await supabase
-                .from("wholesale_users")
-                .select('id, email, business_id, company_name, first_name, last_name, phone, shop_address, registered_address, gst_number')
-            if (uError) throw uError;
+            // Fetch Orders
+            const { data: ordersData, error } = await supabase
+                .from("orders")
+                .select(`
+                *,
+                wholesale_users:user_id (*),
+                addresses:address_id (*)
+            `)
+                .order("created_at", { ascending: false });
 
-            // Combine data
-            const { data: addressesData, error: aError } = await supabase
-                .from("addresses")
-                .select("*");
-            if (aError) throw aError;
+            if (error) throw error;
 
-            // Combine orders with users and addresses
-            const combined = ordersData.map(order => ({
-                ...order,
-                wholesale_users: usersData.find(u => u.id === order.user_id) || null,
-                address: addressesData.find(a => a.id === order.address_id) || null
-            }));
-            setOrders(combined);
+            // Fetch Returns
+            const { data: returnsData } = await supabase
+                .from("returns")
+                .select("business_id, quantity");
 
-            // Group by Business ID
-            const groups = combined.reduce((acc: any, order) => {
-                const bId = order.wholesale_users?.business_id || 'Unknown';
+            // Create return count map
+            const returnMap: any = {};
+
+            returnsData?.forEach((r: any) => {
+                if (!returnMap[r.business_id]) {
+                    returnMap[r.business_id] = 0;
+                }
+                returnMap[r.business_id] += 1;
+            });
+
+            setOrders(ordersData);
+
+            const groups = ordersData.reduce((acc: any, order) => {
+
+                const bId = order.wholesale_users?.business_id || "Unknown";
+
                 if (!acc[bId]) {
                     acc[bId] = {
                         business_id: bId,
                         company_name: order.wholesale_users?.company_name || "Unknown Business",
                         client_info: order.wholesale_users,
                         all_orders: [],
-                        total_spent: 0
+                        total_spent: 0,
+                        return_count: returnMap[bId] || 0
                     };
                 }
+
                 acc[bId].all_orders.push(order);
-                acc[bId].total_spent += (order.total_amount || 0);
+                acc[bId].total_spent += (order.total_payable_amount || 0);
+
                 return acc;
+
             }, {});
 
             setGroupedClients(Object.values(groups));
+
         } catch (error: any) {
+            console.error("Supabase Error:", error);
             toast.error("Failed to load data");
-        } finally { setLoading(false); }
+        } finally {
+            setLoading(false);
+        }
     };
-
     const updateStatus = async (orderId: string, updates: any) => {
-        try {
-            setUpdating(true);
-
-            // Find order
-            const order = orders.find((o) => o.id === orderId);
-
-            if (!order) {
-                toast.error("Order not found");
+        if (updates.order_status === "delivered") {
+            const orderToUpdate = orders.find(o => o.id === orderId);
+            if (orderToUpdate && orderToUpdate.payment_status !== "paid") {
+                toast.error("ERROR: Complete payment before marking as Delivered");
                 return;
             }
-
-            // Update order in Supabase
-            const { error } = await supabase
+        }
+        try {
+            setUpdating(true);
+            const { data, error } = await supabase
                 .from("orders")
                 .update(updates)
-                .eq("id", orderId);
+                .eq("id", orderId)
+                .select();
 
             if (error) throw error;
 
-            toast.success("Status Updated");
-
-            // Send email only if customer email exists
-            const customerEmail = order?.wholesale_users?.email;
-
-            if (customerEmail) {
-                try {
-                    await fetch("/api/send-order-email", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            email: customerEmail,
-                            orderId: order.order_id_custom,
-                            status: updates.order_status || updates.payment_status,
-                            items: order.items,
-                            total: order.total_payable_amount,
-                            paid: order.amount_paid_now,
-                            remaining: order.remaining_balance,
-                            address: order.address_snapshot,
-                        }),
-                    });
-                } catch (emailError) {
-                    console.error("Email send failed:", emailError);
-                }
+            if (!data || data.length === 0) {
+                toast.error("Update failed: Record not found");
+                return;
             }
 
-            // Refresh orders
-            await fetchOrders();
+            // Update local state for the main list
+            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates } : o));
 
-        } catch (err) {
-            console.error(err);
-            toast.error("Update Failed");
+            // Sync the slide-over view if open
+            if (selectedClient) {
+                setSelectedClient((prev: any) => ({
+                    ...prev,
+                    all_orders: prev.all_orders.map((o: any) =>
+                        o.id === orderId ? { ...o, ...updates } : o
+                    )
+                }));
+            }
+
+            toast.success("Database Updated Successfully");
+        } catch (err: any) {
+            toast.error(`Update Failed: ${err.message}`);
         } finally {
             setUpdating(false);
         }
@@ -132,112 +152,61 @@ export default function AdminOrdersPage() {
         if (!selectedClient) return;
 
         const doc = new jsPDF('l', 'mm', 'a4');
-
-        // --- HEADER ---
         doc.setFontSize(18);
         doc.setFont("helvetica", "bold");
-        doc.text("Combined Active Orders Invoice", 14, 20);
+        doc.text("COMBINED ACTIVE ORDERS STATEMENT", 14, 20);
 
-        doc.setFontSize(11);
+        doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.text(`Business: ${selectedClient.company_name}`, 14, 30);
         doc.text(`Business ID: ${selectedClient.business_id}`, 14, 36);
-        doc.text(`Phone: ${selectedClient.client_info?.phone || 'N/A'}`, 14, 42);
+        doc.text(`Contact: ${selectedClient.client_info?.phone || 'N/A'}`, 14, 42);
 
-        // --- ADDRESS SECTION ---
-        const shopAddr = selectedClient.client_info?.shop_address || '-';
-        const regAddr = selectedClient.client_info?.registered_address || '-';
-
-        const shopAddressLines = doc.splitTextToSize(shopAddr, 160);
-        doc.setFont("helvetica", "bold");
-        doc.text("Shop Address:", 14, 48);
-        doc.setFont("helvetica", "normal");
-        doc.text(shopAddressLines, 55, 48);
-
-        const registeredAddressY = 48 + (shopAddressLines.length * 6);
-        const regAddressLines = doc.splitTextToSize(regAddr, 160);
-        doc.setFont("helvetica", "bold");
-        doc.text("Registered Address:", 14, registeredAddressY);
-        doc.setFont("helvetica", "normal");
-        doc.text(regAddressLines, 55, registeredAddressY);
-
-        // --- TABLE CALCULATIONS ---
         const activeOrders = selectedClient.all_orders.filter(
-            (order: any) => order.order_status !== 'delivered' && order.order_status !== 'cancelled'
+            (o: any) => o.order_status !== 'delivered' && o.order_status !== 'cancelled'
         );
 
-        let totalRemainingBalance = 0;
-
-        const columns = [
-            "Order ID",
-            "Date",
-            "Delivery Address",
-            "Product Name",
-            "Qty",
-            "Price",
-            "Total",
-            "Paid",
-            "Remaining"
-        ];
-
+        let totalRemaining = 0;
         const rows: any[] = [];
+
         activeOrders.forEach((order: any) => {
-            const deliveryAddress = order.address_snapshot || "N/A";
-            // Calculate the running total of remaining balance
-            totalRemainingBalance += Number(order.remaining_balance || 0);
-
+            totalRemaining += Number(order.remaining_balance || 0);
             order.items?.forEach((item: any) => {
-                const unitPrice = item.price_at_purchase || 0;
-
                 rows.push([
                     order.order_id_custom,
                     new Date(order.created_at).toLocaleDateString(),
-                    deliveryAddress,
                     item.product_name,
                     item.quantity,
-                    `${Number(unitPrice).toFixed(2)}`,
-                    `${Number(order.total_payable_amount).toFixed(2)}`,
-                    `${Number(order.amount_paid_now).toFixed(2)}`,
-                    `${Number(order.remaining_balance).toFixed(2)}`
+                    Number(item.price_at_purchase).toFixed(2),
+                    Number(order.total_payable_amount).toFixed(2),
+                    Number(order.amount_paid_now).toFixed(2),
+                    Number(order.remaining_balance).toFixed(2)
                 ]);
             });
         });
 
-        const tableStartY = registeredAddressY + (regAddressLines.length * 6) + 10;
-
         autoTable(doc, {
-            startY: tableStartY,
-            head: [columns],
+            startY: 50,
+            head: [["Order ID", "Date", "Product", "Qty", "Price", "Total", "Paid", "Balance"]],
             body: rows,
             theme: "grid",
-            headStyles: { fillColor: [200, 0, 0], textColor: [255, 255, 255], fontStyle: 'bold' },
-            styles: { fontSize: 8, cellPadding: 2 },
-            columnStyles: {
-                0: { cellWidth: 30 },
-                2: { cellWidth: 45 },
-                3: { cellWidth: 40 },
-            }
+            headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255] },
+            styles: { fontSize: 8 }
         });
 
-        // --- FINAL REMAINING BALANCE (BIG WORDS) ---
         const finalY = (doc as any).lastAutoTable.finalY + 15;
+        doc.setFontSize(14);
+        doc.setTextColor(220, 38, 38);
+        doc.text(`TOTAL OUTSTANDING BALANCE: RS. ${totalRemaining.toLocaleString()}`, 14, finalY);
 
-        doc.setFontSize(16); // Bigger font
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(200, 0, 0); // Red color to make it stand out
-        doc.text(
-            `TOTAL REMAINING AMOUNT TO PAY: RS. ${totalRemainingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-            14,
-            finalY
-        );
-
-        doc.save(`Combined_Invoice_${selectedClient.business_id}.pdf`);
+        doc.save(`Statement_${selectedClient.business_id}.pdf`);
     };
 
     const getStatusStyle = (status: string) => {
         const s = status?.toLowerCase();
-        if (['paid', 'fully_paid', 'delivered'].includes(s)) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-        if (['processing', 'shipped', 'partially_paid'].includes(s)) return 'bg-amber-50 text-amber-700 border-amber-200';
+        if (['paid', 'delivered'].includes(s)) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        if (['processing', 'shipped', 'pending'].includes(s)) return 'bg-amber-50 text-amber-700 border-amber-200';
+        if (s === 'cancelled') return 'bg-red-50 text-red-700 border-red-200';
         return 'bg-slate-50 text-slate-700 border-slate-200';
     };
 
@@ -247,115 +216,239 @@ export default function AdminOrdersPage() {
     );
 
     return (
-        <div className="min-h-screen bg-[#FDF8F8] p-4 md:p-10">
+        <div className="min-h-screen bg-[#FDF8F8] p-6 md:p-12">
             <Toaster position="top-right" />
 
-            <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
+            {/* Header Section */}
+            <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
                 <div>
-                    <h1 className="text-4xl font-[900] text-slate-900 tracking-tight uppercase">Client Registry</h1>
-                    <p className="text-black font-medium">Manage orders by business entity</p>
+                    <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase">Order Registry</h1>
+                    <p className="text-red-500 font-bold tracking-widest uppercase text-xs mt-1">Management Console </p>
                 </div>
 
-                <div className="relative w-full md:w-80">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <div className="relative w-full md:w-96">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
-                        type="text" placeholder="Search Business ID or Name..."
-                        className="w-full pl-12 pr-4 py-4 text-black bg-white border-0 shadow-sm rounded-2xl focus:ring-2 ring-red-500 transition-all outline-none text-sm font-bold"
+                        type="text"
+                        placeholder="SEARCH BUSINESS ENTITY..."
+                        className="w-full pl-12 pr-4 py-4 text-black bg-white border-0 shadow-xl shadow-red-500/5 rounded-2xl focus:ring-2 ring-red-500 transition-all outline-none text-xs font-black uppercase"
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
             </div>
 
             {/* Business Table */}
-            <div className="max-w-7xl mx-auto bg-white rounded-[2.5rem] shadow-sm border border-red-50 overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-red-50/50 border-b border-red-100">
-                        <tr>
-                            <th className="px-8 py-5 text-[11px] font-black uppercase text-red-400">Business Entity</th>
-                            <th className="px-8 py-5 text-[11px] font-black uppercase text-red-400">Order Volume</th>
-                            <th className="px-8 py-5 text-[11px] font-black uppercase text-red-400">Total Revenue</th>
-                            <th className="px-8 py-5 text-[11px] font-black uppercase text-red-400">Balance Due</th>
-                            <th className="px-8 py-5 text-[11px] font-black uppercase text-red-400 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-red-50">
-                        {filteredClients.map(client => (
-                            <tr key={client.business_id} className="hover:bg-red-50/30 transition-all cursor-pointer group" onClick={() => setSelectedClient(client)}>
-                                <td className="px-8 py-6">
-                                    <div className="text-lg font-black text-slate-900 tracking-tighter uppercase">{client.company_name}</div>
-                                    <div className="text-[10px] font-bold text-red-600 uppercase tracking-widest">{client.business_id}</div>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <div className="flex items-center gap-2">
-                                        <ShoppingBag size={16} className="text-slate-400" />
-                                        <span className="font-black text-slate-700">{client.all_orders.length} Orders</span>
-                                    </div>
-                                </td>
-
-                                <td className="px-8 py-6">
-                                    <div className="text-sm font-black text-slate-900">₹{client.total_spent?.toLocaleString()}</div>
-                                </td>
-                                <td className="px-8 py-6">
-                                    {/* Calculate total remaining across all active orders for this client */}
-                                    <div className="text-sm font-black text-red-600">
-                                        {client.all_orders.reduce((acc: number, o: any) => acc + (Number(o.remaining_balance) || 0), 0)}
-                                    </div>
-                                </td>
-                                <td className="px-8 py-6 text-right">
-                                    <button className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase hover:bg-red-600 transition-all">
-                                        View History
-                                    </button>
-                                </td>
+            <div className="max-w-7xl mx-auto bg-white rounded-[2.5rem] shadow-2xl shadow-red-900/5 border border-red-50 overflow-hidden">
+                {loading ? (
+                    <div className="p-20 text-center font-black text-slate-400 uppercase tracking-widest animate-pulse">Loading Registry...</div>
+                ) : (
+                    <table className="w-full text-left">
+                        <thead className="bg-red-50/50 border-b border-red-100">
+                            <tr>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase text-red-500 tracking-widest">Business Entity</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase text-red-500 tracking-widest">Orders</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase text-red-500 tracking-widest">Revenue</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase text-red-500 tracking-widest">Returns</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase text-red-500 tracking-widest">Balance Due</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase text-red-500 tracking-widest text-right">Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-red-50">
+                            {filteredClients.map(client => (
+                                <tr key={client.business_id} className="hover:bg-red-50/30 transition-all cursor-pointer group" onClick={() => setSelectedClient(client)}>
+                                    <td className="px-8 py-6">
+                                        <div className="text-lg font-black text-slate-900 tracking-tighter uppercase">{client.company_name}</div>
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{client.business_id}</div>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <span className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black text-slate-600">{client.all_orders.length} ITEMS</span>
+                                    </td>
+                                    <td className="px-8 py-6 font-black text-slate-900">
+                                        ₹{client.total_spent?.toLocaleString()}
+                                    </td>
+
+                                    <td className="px-8 py-6">
+                                        <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black">
+                                            {client.return_count || 0} ITEMS
+                                        </span>
+                                    </td>
+
+                                    <td className="px-8 py-6 font-black text-red-600">
+                                        ₹{client.all_orders.reduce((acc: number, o: any) => acc + (Number(o.remaining_balance) || 0), 0).toLocaleString()}
+                                    </td>
+                                    <td className="px-8 py-6 text-right">
+                                        <button className="p-3 bg-slate-900 text-white rounded-xl hover:bg-red-600 transition-all group-hover:scale-110">
+                                            <ChevronRight size={18} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
             </div>
 
-            {/* Slide-over Detail View: ALL ORDERS FOR BUSINESS */}
+            {/* Slide-over Detail View */}
             {selectedClient && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-end">
-                    <div className="w-full max-w-4xl bg-white h-full shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-500">
-                        <div className="p-10">
-                            <button onClick={() => setSelectedClient(null)} className="mb-6 px-4 py-2 bg-slate-100 rounded-lg text-xs font-black uppercase text-slate-500 hover:bg-red-600 hover:text-white transition-all">
-                                ← Back to Registry
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex justify-end">
+                    <div className="w-full max-w-5xl bg-[#FDF8F8] h-full shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-500">
+                        <div className="p-8 md:p-12">
+                            <button
+                                onClick={() => setSelectedClient(null)}
+                                className="mb-8 flex items-center gap-2 px-6 py-3 bg-white rounded-2xl text-[10px] font-black uppercase text-slate-900 shadow-sm hover:bg-red-600 hover:text-white transition-all"
+                            >
+                                <X size={14} /> Close Business Profile
                             </button>
 
-                            <div className="mb-10 border-b border-red-50 pb-10">
-                                <h2 className="text-5xl font-black text-slate-900 tracking-tighter uppercase mb-2">{selectedClient.company_name}</h2>
-                                <p className="text-red-500 font-black text-sm tracking-widest uppercase">{selectedClient.business_id} • {selectedClient.client_info?.phone}</p>
+                            <div className="flex flex-col md:flex-row justify-between items-end mb-12 border-b-4 border-red-600 pb-8 gap-6">
+                                <div>
+                                    <h2 className="text-6xl font-black text-slate-900 tracking-tighter uppercase leading-none">{selectedClient.company_name}</h2>
+                                    <div className="flex gap-4 mt-4">
+                                        <span className="flex items-center gap-1 text-xs font-black text-red-500 uppercase"><Building2 size={14} /> {selectedClient.business_id}</span>
+                                        <span className="flex items-center gap-1 text-xs font-black text-slate-500 uppercase"><Phone size={14} /> {selectedClient.client_info?.phone}</span>
+                                    </div>
+                                </div>
+                                <button onClick={generateCombinedPDF} className="flex items-center gap-2 px-8 py-4 bg-red-600 text-white rounded-2xl text-xs font-black uppercase shadow-lg shadow-red-600/20 hover:bg-slate-900 transition-all">
+                                    <FileText size={16} /> Download Active Statement
+                                </button>
                             </div>
 
-                            {/* Section: ACTIVE / PENDING ORDERS */}
-                            <div className="mb-12">
-                                <h3 className="text-xs font-black text-slate-400 uppercase mb-6 flex items-center gap-2">
-                                    <RefreshCcw size={16} className="text-amber-500" /> Active Shipments & Processing
-                                </h3>
+                            <div className="flex gap-4 mb-10 border-b pb-4">
 
                                 <button
-                                    onClick={generateCombinedPDF}
-                                    className="mb-4 px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-black uppercase hover:bg-red-700 transition"
+                                    onClick={() => setActiveTab("orders")}
+                                    className={`px-6 py-2 rounded-xl text-xs font-black uppercase ${activeTab === "orders"
+                                            ? "bg-red-600 text-white"
+                                            : "bg-white text-slate-700"
+                                        }`}
                                 >
-                                    Download All Active Orders
+                                    Orders
                                 </button>
-                                <div className="space-y-4">
-                                    {selectedClient.all_orders.filter((o: any) => o.order_status !== 'delivered' && o.order_status !== 'cancelled').map((order: any) => (
-                                        <OrderCard key={order.id} order={order} updateStatus={updateStatus} getStatusStyle={getStatusStyle} updating={updating} />
-                                    ))}
-                                </div>
+
+                                <button
+                                    onClick={() => setActiveTab("past")}
+                                    className={`px-6 py-2 rounded-xl text-xs font-black uppercase ${activeTab === "past"
+                                            ? "bg-red-600 text-white"
+                                            : "bg-white text-slate-700"
+                                        }`}
+                                >
+                                    Past Orders
+                                </button>
+
+                                <button
+                                    onClick={() => setActiveTab("returns")}
+                                    className={`px-6 py-2 rounded-xl text-xs font-black uppercase ${activeTab === "returns"
+                                            ? "bg-red-600 text-white"
+                                            : "bg-white text-slate-700"
+                                        }`}
+                                >
+                                    Returns
+                                </button>
+
                             </div>
 
-                            {/* Section: COMPLETED ORDERS */}
-                            <div>
-                                <h3 className="text-xs font-black text-slate-400 uppercase mb-6 flex items-center gap-2">
-                                    <History size={16} className="text-emerald-500" /> Past Deliveries
-                                </h3>
-                                <div className="space-y-4 opacity-80">
-                                    {selectedClient.all_orders.filter((o: any) => o.order_status === 'delivered').map((order: any) => (
-                                        <OrderCard key={order.id} order={order} updateStatus={updateStatus} getStatusStyle={getStatusStyle} updating={updating} />
-                                    ))}
+                            {activeTab === "orders" && (
+                                <>
+                                    <div className="mb-16">
+                                        <h3 className="text-xs font-black text-slate-400 uppercase mb-6 flex items-center gap-2 tracking-[0.2em]">
+                                            <RefreshCcw size={16} className="text-amber-500" /> Pending Shipments
+                                        </h3>
+
+                                        <div className="space-y-6">
+                                            {selectedClient.all_orders
+                                                .filter((o: any) => o.order_status !== "delivered" && o.order_status !== "cancelled")
+                                                .map((order: any) => (
+                                                    <OrderCard
+                                                        key={order.id}
+                                                        order={order}
+                                                        updateStatus={updateStatus}
+                                                        getStatusStyle={getStatusStyle}
+                                                        updating={updating}
+                                                    />
+                                                ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {activeTab === "past" && (
+                                <div className="space-y-6">
+
+                                    <h3 className="text-xs font-black text-slate-400 uppercase mb-6 flex items-center gap-2 tracking-[0.2em]">
+                                        <History size={16} className="text-emerald-500" /> Delivered Orders
+                                    </h3>
+
+                                    {selectedClient.all_orders
+                                        .filter((o: any) => o.order_status === "delivered")
+                                        .map((order: any) => (
+                                            <OrderCard
+                                                key={order.id}
+                                                order={order}
+                                                updateStatus={updateStatus}
+                                                getStatusStyle={getStatusStyle}
+                                                updating={updating}
+                                            />
+                                        ))}
+
+                                    {selectedClient.all_orders.filter((o: any) => o.order_status === "delivered").length === 0 && (
+                                        <div className="text-center text-slate-400 font-bold uppercase text-xs">
+                                            No Past Orders
+                                        </div>
+                                    )}
+
                                 </div>
-                            </div>
+                            )}
+
+
+                            {activeTab === "returns" && (
+                                <div className="space-y-4">
+
+                                    {returns.length === 0 && (
+                                        <div className="text-center text-slate-400 font-bold uppercase text-xs">
+                                            No Returns Found
+                                        </div>
+                                    )}
+
+                                    {returns.map((r: any) => (
+
+                                        <div
+                                            key={r.id}
+                                            className="bg-white p-6 rounded-2xl border border-red-50 shadow-sm"
+                                        >
+
+                                            <div className="flex justify-between items-center">
+
+                                                <div>
+                                                    <p className="text-lg font-black text-slate-900">
+                                                        {r.product_name}
+                                                    </p>
+
+                                                    <p className="text-xs text-slate-500 font-bold uppercase">
+                                                        Reason: {r.reason}
+                                                    </p>
+
+                                                </div>
+
+                                                <div className="text-right">
+
+                                                    <p className="text-xs font-black text-red-600">
+                                                        Qty: {r.quantity}
+                                                    </p>
+
+                                                    <p className="text-[10px] text-slate-400 font-bold">
+                                                        {new Date(r.created_at).toLocaleDateString()}
+                                                    </p>
+
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+                                    ))}
+
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -364,159 +457,110 @@ export default function AdminOrdersPage() {
     );
 }
 
-// Sub-component for individual orders within the client view
 function OrderCard({ order, updateStatus, getStatusStyle, updating }: any) {
     const generateInvoicePDF = (order: any) => {
         const doc = new jsPDF();
-
-        // --- HEADER ---
-        doc.setFontSize(20);
+        doc.setFontSize(22);
         doc.setFont("helvetica", "bold");
-        doc.text("INVOICE", 14, 20);
+        doc.text("INVOICE", 14, 25);
 
         doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Invoice Created: ${new Date().toLocaleDateString()}`, 14, 28);
+        doc.text(`ID: ${order.order_id_custom}`, 14, 35);
+        doc.text(`DATE: ${new Date(order.created_at).toLocaleDateString()}`, 14, 40);
 
-        // --- BUSINESS INFO ---
         doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
-        doc.text("Business Details:", 14, 38);
-
+        doc.text("BILL TO:", 14, 55);
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.text(`Company: ${order.wholesale_users?.company_name || 'Unknown'}`, 14, 44);
-        doc.text(`GST Number: ${order.wholesale_users?.gst_number || '-'}`, 14, 50);
+        doc.text(`${order.wholesale_users?.company_name}`, 14, 62);
+        doc.text(`GST: ${order.wholesale_users?.gst_number || 'N/A'}`, 14, 68);
 
-        // Shop Address with multiline support
-        const shopAddr = order.wholesale_users?.shop_address || '-';
-        const shopAddressLines = doc.splitTextToSize(shopAddr, 140);
-        doc.text("Shop Address:", 14, 56);
-        doc.text(shopAddressLines, 45, 56);
-
-        const registeredAddressY = 56 + (shopAddressLines.length * 5);
-        doc.text(`Registered Address: ${order.wholesale_users?.registered_address || '-'}`, 14, registeredAddressY);
-
-        // --- ORDER INFO ---
-        const orderDetailsY = registeredAddressY + 10;
-        doc.setFont("helvetica", "bold");
-        doc.text("Order Details:", 14, orderDetailsY);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Order ID: ${order.order_id_custom}`, 14, orderDetailsY + 6);
-        doc.text(`Order Placed: ${new Date(order.created_at).toLocaleDateString()}`, 14, orderDetailsY + 12);
-
-        // --- DELIVERY ADDRESS ---
-        doc.setFont("helvetica", "bold");
-        doc.text("Delivery Address:", 14, orderDetailsY + 22);
-        doc.setFont("helvetica", "normal");
-
-        // Using address_snapshot as requested for the delivery location
-        const deliveryAddr = order.address_snapshot || "-";
-        const deliveryLines = doc.splitTextToSize(deliveryAddr, 150);
-        doc.text(deliveryLines, 14, orderDetailsY + 28);
-
-        // --- ITEMS TABLE ---
-        const columns = ["Product Name", "Quantity", "Price", "Total"];
-        const rows = order.items?.map((item: any) => {
-            // FIX: Using price_at_purchase to ensure price is fetched correctly
-            const price = item.price_at_purchase || 0;
-            const subtotal = (item.quantity * price);
-            return [
-                item.product_name,
-                item.quantity,
-                `RS. ${Number(price).toFixed(2)}`,
-                `RS. ${Number(subtotal).toFixed(2)}`
-            ];
-        }) || [];
+        const items = order.items?.map((i: any) => [
+            i.product_name,
+            i.quantity,
+            `RS. ${Number(i.price_at_purchase).toFixed(2)}`,
+            `RS. ${(i.quantity * i.price_at_purchase).toFixed(2)}`
+        ]);
 
         autoTable(doc, {
-            startY: orderDetailsY + 28 + (deliveryLines.length * 5) + 5,
-            head: [columns],
-            body: rows,
-            theme: "grid",
-            headStyles: { fillColor: [200, 0, 0], textColor: [255, 255, 255] }, // Red theme
-            styles: { fontSize: 9 },
+            startY: 80,
+            head: [["Product", "Qty", "Price", "Subtotal"]],
+            body: items,
+            theme: "striped",
+            headStyles: { fillColor: [0, 0, 0] }
         });
 
-        // --- PAYMENT SUMMARY ---
-        const lastY = (doc as any).lastAutoTable?.finalY || 150;
-
+        const finalY = (doc as any).lastAutoTable.finalY + 10;
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.text("Payment Summary:", 14, lastY + 10);
+        doc.text(`TOTAL PAYABLE: RS. ${Number(order.total_payable_amount).toFixed(2)}`, 14, finalY);
+        doc.setTextColor(220, 38, 38);
+        doc.text(`BALANCE DUE: RS. ${Number(order.remaining_balance).toFixed(2)}`, 14, finalY + 8);
 
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.text(`Total Payable: RS. ${Number(order.total_payable_amount || 0).toFixed(2)}`, 14, lastY + 18);
-        doc.text(`Amount Paid Now: RS. ${Number(order.amount_paid_now || 0).toFixed(2)}`, 14, lastY + 24);
-        doc.text(`Payment Type: ${order.payment_type || '-'}`, 14, lastY + 30);
-
-        // --- BIG REMAINING BALANCE WORD ---
-        doc.setFontSize(16);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(200, 0, 0); // Bold Red
-        const remaining = Number(order.remaining_balance || 0).toFixed(2);
-        doc.text(`REMAINING BALANCE TO PAY: RS. ${remaining}`, 14, lastY + 45);
-
-        // --- SAVE PDF ---
-        doc.save(`invoice_${order.order_id_custom}.pdf`);
+        doc.save(`Invoice_${order.order_id_custom}.pdf`);
     };
 
     return (
-        <div className="border-2 border-red-50 rounded-3xl p-6 hover:border-red-200 transition-all">
-            <div className="flex justify-between items-start mb-4">
-                <div>
-                    <span className="text-lg font-black text-slate-900">{order.order_id_custom}</span>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(order.created_at).toLocaleDateString()}</p>
+        <div className="bg-white border-2 border-red-50 rounded-[2rem] p-8 shadow-sm hover:shadow-xl transition-all">
+            <div className="flex flex-col lg:flex-row justify-between gap-8">
+                <div className="flex-1">
+                    <div className="flex items-center gap-4 mb-6">
+                        <span className="text-2xl font-black text-slate-900 tracking-tighter uppercase">{order.order_id_custom}</span>
+                        <span className="px-4 py-1 bg-red-50 text-red-600 rounded-full text-[10px] font-black uppercase">{new Date(order.created_at).toDateString()}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Itemized List</p>
+                            <div className="space-y-2">
+                                {order.items?.map((item: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between text-xs font-bold text-slate-700">
+                                        <span className="truncate">{item.product_name}</span>
+                                        <span className="text-red-600 ml-4 font-black">×{item.quantity}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex flex-col justify-end items-end text-right border-l border-slate-200 pl-6">
+                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total Payable</p>
+                            <div className="text-3xl font-black text-slate-900 tracking-tighter">₹{Number(order.total_payable_amount).toLocaleString()}</div>
+                            <div className="mt-2 text-[10px] font-black text-emerald-600 uppercase">Paid: ₹{Number(order.amount_paid_now).toLocaleString()}</div>
+                            <div className="text-[10px] font-black text-red-600 uppercase bg-red-100 px-3 py-1 rounded-lg mt-2">Due: ₹{Number(order.remaining_balance).toLocaleString()}</div>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex gap-2 items-center">
+
+                <div className="flex flex-col gap-3 lg:w-64">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Update Logistics</p>
+
                     <select
-                        className={`p-2 rounded-xl border text-[10px] font-black uppercase ${getStatusStyle(order.order_status)}`}
+                        className={`w-full p-4 rounded-2xl border-2 text-[10px] font-black uppercase appearance-none cursor-pointer outline-none transition-all ${getStatusStyle(order.order_status)}`}
                         value={order.order_status}
                         onChange={(e) => updateStatus(order.id, { order_status: e.target.value })}
-                        disabled={updating || order.order_status === "delivered" || order.order_status === "cancelled"}
+                        disabled={updating || order.order_status === "delivered"}
                     >
-                        <option value="processing">Conformed</option>
+                        <option value="processing">Confirmed</option>
                         <option value="shipped">Shipped</option>
-                        <option value="delivered">Delivered</option>
+                        <option value="delivered" disabled={order.payment_status !== "paid"}>
+                            Delivered {order.payment_status !== "paid" ? " (Lock)" : ""}
+                        </option>
                         <option value="cancelled">Cancelled</option>
                     </select>
 
                     <select
-                        className={`p-2 rounded-xl border text-[10px] font-black uppercase ${getStatusStyle(order.payment_status)}`}
+                        className={`w-full p-4 rounded-2xl border-2 text-[10px] font-black uppercase appearance-none cursor-pointer outline-none transition-all ${getStatusStyle(order.payment_status)}`}
                         value={order.payment_status}
                         onChange={(e) => updateStatus(order.id, { payment_status: e.target.value })}
                         disabled={updating || order.payment_status === "paid"}
                     >
-                        <option value="pending">Unpaid</option>
-                        <option value="paid">Paid</option>
+                        <option value="pending">Pending Payment</option>
+                        <option value="paid">Mark as Fully Paid</option>
                     </select>
 
-                    {/* Download Invoice Button */}
                     <button
                         onClick={() => generateInvoicePDF(order)}
-                        className="ml-4 px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-black uppercase hover:bg-red-700 transition"
-                        type="button"
+                        className="mt-2 w-full flex items-center justify-center gap-2 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 transition-all shadow-lg"
                     >
-                        Download Invoice
+                        <FileText size={14} /> Download Invoice
                     </button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl">
-                <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Items</p>
-                    <div className="text-xs font-bold text-slate-700">
-                        {order.items?.map((i: any, index: number) => (
-                            <div key={index}>
-                                {i.quantity}x {i.product_name}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="text-right">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total Amount</p>
-                    <div className="text-lg font-black text-red-600">₹{order.total_amount?.toLocaleString()}</div>
                 </div>
             </div>
         </div>

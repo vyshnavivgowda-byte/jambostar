@@ -14,6 +14,8 @@ export default function CartPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [transportCharge, setTransportCharge] = useState<number>(0);
+  const [platformCharge, setPlatformCharge] = useState<number>(80);
+const [handlingCharge, setHandlingCharge] = useState<number>(150);
   useEffect(() => {
     checkUser();
   }, []);
@@ -214,10 +216,19 @@ const fetchTransportCharge = async (userId: string) => {
   <span>Transport Charge</span>
   <span className="text-slate-900">₹{transportCharge.toLocaleString()}</span>
 </div>
+<div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+  <span>Platform Fee</span>
+  <span className="text-slate-900">₹{platformCharge.toLocaleString()}</span>
+</div>
+
+<div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+  <span>Handling Charge</span>
+  <span className="text-slate-900">₹{handlingCharge.toLocaleString()}</span>
+</div>
               <div className="h-px bg-slate-100 my-4" />
               <div className="flex justify-between items-end">
                 <span className="text-[10px] font-black uppercase text-slate-400">Grand Total</span>
-                <span className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">₹{(subtotal * 1.18 + transportCharge).toLocaleString()}</span>
+                <span className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">₹{(subtotal * 1.18 + transportCharge + platformCharge + handlingCharge).toLocaleString()}</span>
               </div>
             </div>
 

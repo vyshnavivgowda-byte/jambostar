@@ -22,10 +22,61 @@ export default function WholesaleOrders() {
     const [orders, setOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [returns, setReturns] = useState<any[]>([]);
+    const [activeTab, setActiveTab] = useState<"orders" | "returns">("orders");
 
     useEffect(() => {
         fetchOrders();
+        fetchReturns();
     }, []);
+
+    const fetchReturns = async () => {
+        try {
+            const userStr = localStorage.getItem("wholesale_user");
+            if (!userStr) return;
+
+            const user = JSON.parse(userStr);
+
+            // 1️⃣ Get returns
+            const { data: returnsData, error } = await supabase
+                .from("returns")
+                .select("*")
+                .eq("business_id", user.business_id)
+                .order("created_at", { ascending: false });
+
+            if (error) {
+                console.error(error);
+                return;
+            }
+
+            // 2️⃣ Get all products + images
+            const { data: products } = await supabase
+                .from("products")
+                .select(`
+        id,
+        name,
+        product_images (
+          image_url
+        )
+      `);
+
+            // 3️⃣ Map image to return
+            const mapped = returnsData.map((ret) => {
+                const product = products?.find(
+                    (p) => p.name.toLowerCase() === ret.product_name.toLowerCase()
+                );
+
+                return {
+                    ...ret,
+                    image_url: product?.product_images?.[0]?.image_url || null,
+                };
+            });
+
+            setReturns(mapped);
+        } catch (err) {
+            console.error("Return fetch error", err);
+        }
+    };
 
     const fetchOrders = async () => {
         try {
@@ -166,103 +217,202 @@ export default function WholesaleOrders() {
                     </div>
                 </div>
             </div>
+            <div className="max-w-5xl mx-auto px-4 mt-6">
+                <div className="flex gap-3 border-b pb-4">
 
-            <div className="max-w-5xl mx-auto px-4 mt-8 space-y-6">
-                {orders.length > 0 ? orders.map((order) => {
-                    const displayTotal = Number(order.total_payable_amount || order.total_amount);
-                    const displayPaid = Number(order.amount_paid_now || 0);
-                    let displayBalance = order.remaining_balance !== null ? Number(order.remaining_balance) : (order.payment_status === 'paid' ? 0 : displayTotal);
-                    const isPaid = displayBalance <= 0 || order.payment_status === 'paid';
+                    <button
+                        onClick={() => setActiveTab("orders")}
+                        className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase
+${activeTab === "orders"
+                                ? "bg-red-600 text-white"
+                                : "bg-white border text-slate-600"}`}
+                    >
+                        Orders
+                    </button>
 
-                    return (
-                        <div key={order.id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                            {/* Top Info Bar */}
-                            <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
-                                <div className="flex items-center gap-2">
-                                    <span className="bg-slate-900 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase">
-                                        {order.order_id_custom}
-                                    </span>
-                                    <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg border ${displayBalance > 0 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
-                                        {displayBalance > 0 ? 'Credit/Partial' : 'Paid in Full'}
-                                    </span>
-                                </div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase">
-                                    {new Date(order.created_at).toLocaleDateString()}
-                                </span>
-                            </div>
+                    <button
+                        onClick={() => setActiveTab("returns")}
+                        className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase
+${activeTab === "returns"
+                                ? "bg-red-600 text-white"
+                                : "bg-white border text-slate-600"}`}
+                    >
+                        Returns
+                    </button>
 
-                            <div className="p-6 md:p-8 flex flex-col lg:flex-row gap-8">
-                                {/* Order Items Section */}
-                                <div className="flex-1 space-y-6">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {order.items?.map((item: any, idx: number) => (
-                                            <div key={idx} className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
-                                                <div className="h-12 w-12 bg-slate-50 rounded-xl flex-shrink-0 overflow-hidden border border-slate-100 p-1">
-                                                    <img src={item.image || 'https://via.placeholder.com/100'} alt="" className="w-full h-full object-contain" />
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-[10px] font-black text-slate-800 truncate uppercase leading-tight">{item.product_name}</p>
-                                                    <p className="text-[9px] font-bold text-red-600 uppercase mt-0.5">{item.quantity} {item.unit}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* Address Snapshot - Hidden on very small mobile if too long, or truncated */}
-                                    <div className="pt-4 border-t border-slate-50">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Delivery Destination</p>
-                                        <p className="text-xs font-bold text-slate-600 leading-relaxed">{order.address_snapshot}</p>
-                                    </div>
-                                </div>
-
-                                {/* Financial Summary - This part pops on mobile */}
-                                <div className="lg:w-72 bg-slate-900 rounded-[1.5rem] md:rounded-[2rem] p-6 text-white shadow-xl">
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-center opacity-60">
-                                            <span className="text-[9px] font-black uppercase tracking-widest">Total Invoice</span>
-                                            <span className="text-xs font-bold">₹{displayTotal.toLocaleString()}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-emerald-400">
-                                            <span className="text-[9px] font-black uppercase tracking-widest">Collected</span>
-                                            <span className="text-xs font-bold">₹{displayPaid.toLocaleString()}</span>
-                                        </div>
-
-                                        <div className="h-px bg-white/10" />
-
-                                        <div className="py-2">
-                                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40 mb-1 text-center">Outstanding Balance</p>
-                                            <p className={`text-3xl font-black text-center tracking-tighter ${displayBalance > 0 ? 'text-red-500' : 'text-emerald-400'}`}>
-                                                ₹{displayBalance.toLocaleString()}
-                                            </p>
-                                        </div>
-
-                                        {!isPaid ? (
-                                            <button
-                                                onClick={() => handleBalancePayment(order)}
-                                                disabled={processingId === order.id}
-                                                className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/20"
-                                            >
-                                                {processingId === order.id ? <Loader2 className="animate-spin" size={16} /> : <Wallet size={16} />}
-                                                Settle Now
-                                            </button>
-                                        ) : (
-                                            <div className="flex items-center justify-center gap-2 py-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
-                                                <CheckCircle2 size={14} />
-                                                <span className="text-[9px] font-black uppercase tracking-widest">No Dues</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                }) : (
-                    <div className="text-center py-20">
-                        <Package className="mx-auto text-slate-200 mb-4" size={48} />
-                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No order history found</p>
-                    </div>
-                )}
+                </div>
             </div>
+
+            {activeTab === "orders" && (
+                <div className="max-w-5xl mx-auto px-4 mt-8 space-y-6">
+                    {orders.length > 0 ? orders.map((order) => {
+                        const displayTotal = Number(order.total_payable_amount || order.total_amount);
+                        const displayPaid = Number(order.amount_paid_now || 0);
+                        let displayBalance = order.remaining_balance !== null ? Number(order.remaining_balance) : (order.payment_status === 'paid' ? 0 : displayTotal);
+                        const isPaid = displayBalance <= 0 || order.payment_status === 'paid';
+
+                        return (
+                            <div key={order.id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+                                {/* Top Info Bar */}
+                                <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <span className="bg-slate-900 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase">
+                                            {order.order_id_custom}
+                                        </span>
+                                        <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg border ${displayBalance > 0 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
+                                            {displayBalance > 0 ? 'Credit/Partial' : 'Paid in Full'}
+                                        </span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                        {new Date(order.created_at).toLocaleDateString()}
+                                    </span>
+                                </div>
+
+                                <div className="p-6 md:p-8 flex flex-col lg:flex-row gap-8">
+                                    {/* Order Items Section */}
+                                    <div className="flex-1 space-y-6">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {order.items?.map((item: any, idx: number) => (
+                                                <div key={idx} className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                                                    <div className="h-12 w-12 bg-slate-50 rounded-xl flex-shrink-0 overflow-hidden border border-slate-100 p-1">
+                                                        <img src={item.image || 'https://via.placeholder.com/100'} alt="" className="w-full h-full object-contain" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[10px] font-black text-slate-800 truncate uppercase leading-tight">{item.product_name}</p>
+                                                        <p className="text-[9px] font-bold text-red-600 uppercase mt-0.5">{item.quantity} {item.unit}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Address Snapshot - Hidden on very small mobile if too long, or truncated */}
+                                        <div className="pt-4 border-t border-slate-50">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Delivery Destination</p>
+                                            <p className="text-xs font-bold text-slate-600 leading-relaxed">{order.address_snapshot}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Financial Summary - This part pops on mobile */}
+                                    <div className="lg:w-72 bg-slate-900 rounded-[1.5rem] md:rounded-[2rem] p-6 text-white shadow-xl">
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-center opacity-60">
+                                                <span className="text-[9px] font-black uppercase tracking-widest">Total Invoice</span>
+                                                <span className="text-xs font-bold">₹{displayTotal.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-emerald-400">
+                                                <span className="text-[9px] font-black uppercase tracking-widest">Collected</span>
+                                                <span className="text-xs font-bold">₹{displayPaid.toLocaleString()}</span>
+                                            </div>
+
+                                            <div className="h-px bg-white/10" />
+
+                                            <div className="py-2">
+                                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40 mb-1 text-center">Outstanding Balance</p>
+                                                <p className={`text-3xl font-black text-center tracking-tighter ${displayBalance > 0 ? 'text-red-500' : 'text-emerald-400'}`}>
+                                                    ₹{displayBalance.toLocaleString()}
+                                                </p>
+                                            </div>
+
+                                            {!isPaid ? (
+                                                <button
+                                                    onClick={() => handleBalancePayment(order)}
+                                                    disabled={processingId === order.id}
+                                                    className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/20"
+                                                >
+                                                    {processingId === order.id ? <Loader2 className="animate-spin" size={16} /> : <Wallet size={16} />}
+                                                    Settle Now
+                                                </button>
+                                            ) : (
+                                                <div className="flex items-center justify-center gap-2 py-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+                                                    <CheckCircle2 size={14} />
+                                                    <span className="text-[9px] font-black uppercase tracking-widest">No Dues</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }) : (
+                        <div className="text-center py-20">
+                            <Package className="mx-auto text-slate-200 mb-4" size={48} />
+                            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No order history found</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {activeTab === "returns" && (
+
+                <div className="max-w-5xl mx-auto px-4 mt-8 space-y-6">
+
+                    {returns.length > 0 ? returns.map((ret) => {
+
+                        return (
+
+                            <div key={ret.id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6">
+
+                                <div className="flex justify-between items-center mb-4">
+
+                                    <span className="bg-red-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase">
+                                        Return
+                                    </span>
+
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                        {new Date(ret.created_at).toLocaleDateString()}
+                                    </span>
+
+                                </div>
+
+                                <div className="flex items-center gap-4">
+                                    <img
+                                        src={ret.image_url || "https://via.placeholder.com/100"}
+                                        className="w-14 h-14 rounded-xl border object-contain"
+                                    />
+
+                                    <div>
+
+                                        <p className="text-[10px] font-black text-slate-800 uppercase">
+                                            {ret.product_name}
+                                        </p>
+
+                                        <p className="text-[9px] font-bold text-red-600 uppercase">
+                                            Qty : {ret.quantity}
+                                        </p>
+
+                                    </div>
+
+                                </div>
+
+                                <div className="mt-4 border-t pt-3">
+
+                                    <p className="text-[9px] font-black text-slate-400 uppercase">
+                                        Reason
+                                    </p>
+
+                                    <p className="text-xs font-bold text-slate-600">
+                                        {ret.reason}
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+                        )
+
+                    }) : (
+
+                        <div className="text-center py-20">
+                            <p className="text-slate-400 font-bold uppercase text-[10px]">
+                                No returned products
+                            </p>
+                        </div>
+
+                    )}
+
+                </div>
+
+            )}
         </div>
     );
 }

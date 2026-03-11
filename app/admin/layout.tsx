@@ -33,7 +33,7 @@ export default function AdminHeader({
     setMounted(true);
     const isAdmin = localStorage.getItem("adminAuth");
     if (!isAdmin) {
-      router.push("/admin/login");
+      router.push("/adminlogin");
     }
   }, [router]);
 

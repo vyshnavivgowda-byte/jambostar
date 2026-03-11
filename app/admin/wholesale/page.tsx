@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
     CheckCircle2, XCircle, Eye, Loader2,
-    MapPin, Building2, Phone, Mail, Globe, Hash,
+    MapPin, Building2, Phone, Mail, Globe, Hash,User,Calendar,
     Users, Filter, ChevronRight, AlertCircle
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
@@ -17,6 +17,8 @@ export default function WholesaleManagement() {
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const [showApproveInput, setShowApproveInput] = useState(false);
     const [transportCharge, setTransportCharge] = useState<number>(0);
+    const [editTransport, setEditTransport] = useState(false);
+
     useEffect(() => { fetchUsers(); }, []);
 
     const fetchUsers = async () => {
@@ -56,6 +58,31 @@ export default function WholesaleManagement() {
         }
     };
 
+    const updateTransportCharge = async (userId: string) => {
+        const { error } = await supabase
+            .from("wholesale_users")
+            .update({
+                transport_charge: transportCharge,
+                updated_at: new Date()
+            })
+            .eq("id", userId);
+
+        if (error) {
+            toast.error("Failed to update transport charge");
+        } else {
+            toast.success("Transport charge updated");
+
+            // update selected user locally
+            setSelectedUser((prev: any) => ({
+                ...prev,
+                transport_charge: transportCharge
+            }));
+
+            fetchUsers();
+            setEditTransport(false);
+        }
+    };
+
     const filteredUsers = filter === 'all' ? users : users.filter(u => u.status === filter);
     const count = (status: Status) => status === 'all' ? users.length : users.filter(u => u.status === status).length;
 
@@ -66,12 +93,7 @@ export default function WholesaleManagement() {
             {/* Header Section */}
             <div className="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className="bg-red-600 p-1.5 rounded-lg text-white shadow-lg shadow-red-200">
-                            <Users size={20} />
-                        </div>
-                        <span className="text-sm font-black text-red-600 uppercase tracking-[0.2em]">Admin Dashboard</span>
-                    </div>
+
                     <h1 className="text-4xl font-black text-slate-900 tracking-tight">Wholesale <span className="text-red-600">Requests</span></h1>
                     <p className="text-slate-600 mt-2 text-lg font-medium">Verify and manage wholesale partner applications.</p>
                 </div>
@@ -117,49 +139,100 @@ export default function WholesaleManagement() {
                                 <tr><td colSpan={5} className="py-32 text-center text-slate-500 font-bold text-lg">No records found for "{filter}"</td></tr>
                             ) : filteredUsers.map((user) => (
                                 <tr key={user.id} className="hover:bg-red-50/30 transition-colors group">
+
+                                    {/* Company */}
                                     <td className="px-8 py-6">
-                                        <div className="font-black text-slate-900 uppercase text-base">{user.company_name}</div>
+                                        <div className="font-black text-slate-900 uppercase text-base">
+                                            {user.company_name}
+                                        </div>
+
                                         <div className="text-xs font-bold text-red-600 mt-1 flex items-center gap-1">
-                                            <Hash size={12} /> {user.gst_number || "NO GST"}
+                                            <Hash size={12} />
+                                            {user.gst_number || "NO GST"}
                                         </div>
                                     </td>
+
+                                    {/* Owner */}
                                     <td className="px-8 py-6">
-                                        <div className="font-bold text-slate-800">{user.first_name} {user.last_name}</div>
-                                        <div className="text-xs text-slate-500 font-medium">Joined {new Date(user.created_at).toLocaleDateString()}</div>
+                                        <div className="font-bold text-slate-800">
+                                            {user.owner_name || "Not Provided"}
+                                        </div>
+
+                                        <div className="text-xs text-slate-500 font-medium">
+                                            Joined {new Date(user.created_at).toLocaleDateString()}
+                                        </div>
+
+                                        {user.owner_dob && (
+                                            <div className="text-xs text-slate-400">
+                                                DOB: {new Date(user.owner_dob).toLocaleDateString()}
+                                            </div>
+                                        )}
                                     </td>
+
+                                    {/* Contact */}
                                     <td className="px-8 py-6">
-                                        <div className="flex items-center gap-2 text-sm text-slate-700 font-bold mb-1"><Mail size={14} className="text-red-400" /> {user.email}</div>
-                                        <div className="flex items-center gap-2 text-sm text-slate-700 font-bold"><Phone size={14} className="text-red-400" /> {user.phone}</div>
+                                        <div className="flex items-center gap-2 text-sm text-slate-700 font-bold mb-1">
+                                            <Mail size={14} className="text-red-400" />
+                                            {user.email}
+                                        </div>
+
+                                        <div className="flex items-center gap-2 text-sm text-slate-700 font-bold">
+                                            <Phone size={14} className="text-red-400" />
+                                            {user.phone}
+                                        </div>
                                     </td>
+
+                                    {/* Status */}
                                     <td className="px-8 py-6">
-                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${user.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                            user.status === 'approved' ? 'bg-red-50 text-red-700 border-red-200' :
-                                                'bg-slate-100 text-slate-600 border-slate-200'
-                                            }`}>
+                                        <span
+                                            className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${user.status === "pending"
+                                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                                    : user.status === "approved"
+                                                        ? "bg-red-50 text-red-700 border-red-200"
+                                                        : "bg-slate-100 text-slate-600 border-slate-200"
+                                                }`}
+                                        >
                                             {user.status}
                                         </span>
                                     </td>
+
+                                    {/* Actions */}
                                     <td className="px-8 py-6 text-right">
                                         <div className="flex justify-end gap-2">
-                                            <button onClick={() => setSelectedUser(user)} className="p-3 bg-white border border-red-100 rounded-2xl text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm">
+
+                                            {/* View */}
+                                            <button
+                                                onClick={() => setSelectedUser(user)}
+                                                className="p-3 bg-white border border-red-100 rounded-2xl text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                                            >
                                                 <Eye size={18} />
                                             </button>
-                                            {user.status === 'pending' && (
+
+                                            {user.status === "pending" && (
                                                 <>
+                                                    {/* Approve */}
                                                     <button
                                                         onClick={() => {
                                                             setSelectedUser(user);
                                                             setShowApproveInput(true);
-                                                        }} className="p-3 bg-white border border-red-100 text-red-600 rounded-2xl hover:bg-red-600 hover:text-white transition-all shadow-sm">
+                                                        }}
+                                                        className="p-3 bg-white border border-red-100 text-red-600 rounded-2xl hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                                                    >
                                                         <CheckCircle2 size={18} />
                                                     </button>
-                                                    <button onClick={() => handleStatusUpdate(user.id, 'rejected')} className="p-3 bg-white border border-slate-200 text-slate-400 rounded-2xl hover:bg-slate-900 hover:text-white transition-all shadow-sm">
+
+                                                    {/* Reject */}
+                                                    <button
+                                                        onClick={() => handleStatusUpdate(user.id, "rejected")}
+                                                        className="p-3 bg-white border border-slate-200 text-slate-400 rounded-2xl hover:bg-slate-900 hover:text-white transition-all shadow-sm"
+                                                    >
                                                         <XCircle size={18} />
                                                     </button>
                                                 </>
                                             )}
                                         </div>
                                     </td>
+
                                 </tr>
                             ))}
                         </tbody>
@@ -176,43 +249,127 @@ export default function WholesaleManagement() {
                             <button onClick={() => setSelectedUser(null)} className="p-2 hover:bg-red-100 text-red-600 rounded-xl transition-colors"><XCircle /></button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                            <div className="p-8 bg-red-400 rounded-[2.5rem] text-white shadow-2xl shadow-red-200 relative overflow-hidden">
-                                <Building2 className="absolute right-[-10px] bottom-[-10px] text-white/10" size={120} />
-                                <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-2 opacity-80">Verified Business Name</p>
-                                <h3 className="text-3xl font-black uppercase leading-tight">{selectedUser.company_name}</h3>
-                                <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-black/20 rounded-xl text-sm font-black border border-white/10">
-                                    <Hash size={16} /> GST: {selectedUser.gst_number || "NOT PROVIDED"}
-                                </div>
-                            </div>
+                       <div className="flex-1 overflow-y-auto p-8 space-y-8">
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="p-6 bg-red-50/50 rounded-3xl border border-red-100">
-                                    <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">Owner</p>
-                                    <p className="font-black text-slate-900 text-lg">{selectedUser.first_name} {selectedUser.last_name}</p>
-                                </div>
-                                <div className="p-6 bg-red-50/50 rounded-3xl border border-red-100">
-                                    <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">License ID</p>
-                                    <p className="font-black text-slate-900 text-lg uppercase">{selectedUser.business_id || "Pending"}</p>
-                                </div>
-                            </div>
+    {/* BUSINESS CARD */}
+    <div className="p-8 bg-red-500 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
+        <Building2 className="absolute right-[-10px] bottom-[-10px] text-white/10" size={120} />
 
-                            <div className="space-y-4">
-                                <DetailItem icon={<Building2 className="text-red-600" />} label="Registered HQ Address" value={selectedUser.registered_address} />
-                                <DetailItem icon={<MapPin className="text-red-600" />} label="Operational Warehouse" value={selectedUser.shop_address} />
-                                <DetailItem
-                                    icon={<Truck className="text-red-600" />}
-                                    label="Transport Charge"
-                                    value={`₹ ${selectedUser.transport_charge || 0}`}
-                                /></div>
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80">
+            Verified Business
+        </p>
 
-                            {selectedUser.google_maps_link && (
-                                <a href={selectedUser.google_maps_link} target="_blank" className="flex items-center justify-between gap-3 w-full p-6 bg-slate-900 text-white rounded-[2rem] text-xs font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-xl">
-                                    <span className="flex items-center gap-3"><Globe size={20} /> Open in Maps</span>
-                                    <ChevronRight size={20} />
-                                </a>
-                            )}
-                        </div>
+        <h3 className="text-3xl font-black uppercase mt-2">
+            {selectedUser.company_name}
+        </h3>
+
+        <div className="flex flex-wrap gap-3 mt-6">
+
+            <div className="flex items-center gap-2 px-4 py-2 bg-black/20 rounded-xl text-sm font-black">
+                <Hash size={16} />
+                GST: {selectedUser.gst_number || "NOT PROVIDED"}
+            </div>
+
+            <div className="flex items-center gap-2 px-4 py-2 bg-black/20 rounded-xl text-sm font-black">
+                <User size={16} />
+                ID: {selectedUser.business_id || "PENDING"}
+            </div>
+
+        </div>
+    </div>
+
+
+    {/* OWNER INFO */}
+    <div className="grid grid-cols-2 gap-4">
+
+        <div className="p-6 bg-red-50 rounded-3xl border border-red-100">
+            <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">
+                Owner Name
+            </p>
+            <p className="text-lg font-black text-slate-900">
+                {selectedUser.owner_name || "Not Provided"}
+            </p>
+        </div>
+
+        <div className="p-6 bg-red-50 rounded-3xl border border-red-100">
+            <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">
+                Date of Birth
+            </p>
+            <p className="text-lg font-black text-slate-900">
+                {selectedUser.owner_dob
+                    ? new Date(selectedUser.owner_dob).toLocaleDateString()
+                    : "Not Provided"}
+            </p>
+        </div>
+
+        <div className="p-6 bg-red-50 rounded-3xl border border-red-100">
+            <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">
+                Email
+            </p>
+            <p className="text-sm font-bold text-slate-800 break-all">
+                {selectedUser.email}
+            </p>
+        </div>
+
+        <div className="p-6 bg-red-50 rounded-3xl border border-red-100">
+            <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">
+                Phone
+            </p>
+            <p className="text-lg font-black text-slate-900">
+                {selectedUser.phone}
+            </p>
+        </div>
+
+    </div>
+
+
+    {/* ADDRESS */}
+    <div className="space-y-4">
+
+        <DetailItem
+            icon={<Building2 className="text-red-600" />}
+            label="Registered HQ Address"
+            value={selectedUser.registered_address}
+        />
+
+        <DetailItem
+            icon={<MapPin className="text-red-600" />}
+            label="Operational Warehouse"
+            value={selectedUser.shop_address}
+        />
+
+        <DetailItem
+            icon={<Truck className="text-red-600" />}
+            label="Transport Charge"
+            value={`₹ ${selectedUser.transport_charge || 0}`}
+        />
+
+        <DetailItem
+            icon={<Calendar className="text-red-600" />}
+            label="Joined On"
+            value={new Date(selectedUser.created_at).toLocaleDateString()}
+        />
+
+    </div>
+
+
+    {/* MAP BUTTON */}
+    {selectedUser.google_maps_link && (
+        <a
+            href={selectedUser.google_maps_link}
+            target="_blank"
+            className="flex items-center justify-between p-6 bg-slate-900 text-white rounded-[2rem] font-black hover:bg-red-600 transition-all shadow-xl"
+        >
+            <span className="flex items-center gap-3">
+                <Globe size={20} />
+                Open Location in Maps
+            </span>
+
+            <ChevronRight size={20} />
+        </a>
+    )}
+
+</div>
 
                         {selectedUser.status === 'pending' && (
                             <div className="p-8 bg-white border-t border-red-50 space-y-4">
@@ -245,6 +402,36 @@ export default function WholesaleManagement() {
                                         className="py-4 rounded-2xl font-black bg-red-600 text-white shadow-lg shadow-red-100 hover:bg-red-700 transition-all"
                                     >
                                         Approve Partner
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        {editTransport && (
+                            <div className="p-6 bg-red-50 rounded-3xl border border-red-100 space-y-3">
+                                <label className="text-xs font-black text-red-500 uppercase tracking-widest">
+                                    Edit Transport Charge (₹)
+                                </label>
+
+                                <input
+                                    type="number"
+                                    value={transportCharge}
+                                    onChange={(e) => setTransportCharge(Number(e.target.value))}
+                                    className="w-full p-4 border border-red-100 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-red-200"
+                                />
+
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => updateTransportCharge(selectedUser.id)}
+                                        className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold"
+                                    >
+                                        Update
+                                    </button>
+
+                                    <button
+                                        onClick={() => setEditTransport(false)}
+                                        className="px-6 py-3 border rounded-xl font-bold"
+                                    >
+                                        Cancel
                                     </button>
                                 </div>
                             </div>

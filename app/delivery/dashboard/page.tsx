@@ -108,7 +108,7 @@ export default function DeliveryDashboard() {
         try {
             // --- STEP A: SAVE RETURNS TO DATABASE ---
             if (rejectedIndices.length > 0) {
-                const returnsData = rejectedIndices.map(idx => ({
+                const returnsData = rejectedIndices.map((idx: number) => ({
                     order_id: order.order_id_custom,
                     product_name: order.items[idx].product_name,
                     quantity: parseInt(order.items[idx].quantity) || 0,

@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
     MapPin, Loader2, ShieldCheck, Package, Building2, Store,
     Wallet, CheckCircle2, Info, ArrowLeft, Plus, AlertTriangle, ChevronRight,
-    Banknote, Smartphone, Camera, Upload, FileText, X, CreditCard, QrCode , AlertCircle
+    Banknote, Smartphone, Camera, Upload, FileText, X, CreditCard, QrCode, AlertCircle
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -170,179 +170,179 @@ export default function CheckoutPage() {
 
     const handlePaymentProofSubmit = async () => {
 
-    if (
-        (paymentMethod === "bank" && !transactionDetails.transactionId) ||
-        (paymentMethod === "upi" && !transactionDetails.utrNumber)
-    ) {
-        toast.error("Please enter transaction details");
-        return;
-    }
+        if (
+            (paymentMethod === "bank" && !transactionDetails.transactionId) ||
+            (paymentMethod === "upi" && !transactionDetails.utrNumber)
+        ) {
+            toast.error("Please enter transaction details");
+            return;
+        }
 
-    try {
+        try {
 
-        setPayLoading(true);
+            setPayLoading(true);
 
-        const userStr = localStorage.getItem("wholesale_user");
-        const user = JSON.parse(userStr || "{}");
+            const userStr = localStorage.getItem("wholesale_user");
+            const user = JSON.parse(userStr || "{}");
 
-        // Generate Custom Order ID
-        const now = new Date();
-        const dateStr = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
+            // Generate Custom Order ID
+            const now = new Date();
+            const dateStr = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
 
-        const { count } = await supabase
-            .from("orders")
-            .select("*", { count: "exact", head: true });
+            const { count } = await supabase
+                .from("orders")
+                .select("*", { count: "exact", head: true });
 
-        const customId = `JS-${dateStr}${String((count || 0) + 1).padStart(4, "0")}`;
+            const customId = `JS-${dateStr}${String((count || 0) + 1).padStart(4, "0")}`;
 
-        // Format Items Snapshot
-        const orderItemsSnapshot = cartItems.map((item: any) => ({
-            product_name: item.product_variants.products.name,
-            variant_name: item.product_variants.variant,
-            unit: item.product_variants.unit,
-            quantity: item.quantity,
-            price_at_purchase: item.product_variants.wholesale_price,
-            subtotal: item.quantity * item.product_variants.wholesale_price,
-            image:
-                item.product_variants.products.product_images?.[0]?.image_url || null
-        }));
+            // Format Items Snapshot
+            const orderItemsSnapshot = cartItems.map((item: any) => ({
+                product_name: item.product_variants.products.name,
+                variant_name: item.product_variants.variant,
+                unit: item.product_variants.unit,
+                quantity: item.quantity,
+                price_at_purchase: item.product_variants.wholesale_price,
+                subtotal: item.quantity * item.product_variants.wholesale_price,
+                image:
+                    item.product_variants.products.product_images?.[0]?.image_url || null
+            }));
 
-        // Prepare Order Data
-        const orderData = {
+            // Prepare Order Data
+            const orderData = {
 
-            order_id_custom: customId,
+                order_id_custom: customId,
 
-            user_id: user.id,
+                user_id: user.id,
 
-            address_id:
-                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                    selectedAddressId || ""
+                address_id:
+                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                        selectedAddressId || ""
+                    )
+                        ? selectedAddressId
+                        : null,
+
+                address_snapshot: selectedAddressText,
+
+                total_amount: parseFloat(totalWithGst.toFixed(2)),
+
+                total_payable_amount: parseFloat(totalWithGst.toFixed(2)),
+
+                amount_paid_now: parseFloat(advanceAmount.toFixed(2)),
+
+                remaining_balance: parseFloat(remainingBalance.toFixed(2)),
+
+                payment_type: advanceAmount >= totalWithGst ? "full" : "partial",
+
+                payment_status: "pending_manual",
+
+                order_status: "processing",
+
+                items: orderItemsSnapshot,
+
+                balance_due_date: new Date(
+                    Date.now() + 10 * 24 * 60 * 60 * 1000
                 )
-                    ? selectedAddressId
-                    : null,
+                    .toISOString()
+                    .split("T")[0]
+            };
 
-            address_snapshot: selectedAddressText,
+            // Insert Order
+            const { data: order, error: insertError } = await supabase
+                .from("orders")
+                .insert([orderData])
+                .select()
+                .single();
 
-            total_amount: parseFloat(totalWithGst.toFixed(2)),
+            if (insertError) throw insertError;
 
-            total_payable_amount: parseFloat(totalWithGst.toFixed(2)),
+            let screenshotUrl: string | null = null;
 
-            amount_paid_now: parseFloat(advanceAmount.toFixed(2)),
+            // Upload Payment Proof
+            if (transactionDetails.photo) {
 
-            remaining_balance: parseFloat(remainingBalance.toFixed(2)),
+                const fileExt = transactionDetails.photo.name.split(".").pop();
 
-            payment_type: advanceAmount >= totalWithGst ? "full" : "partial",
+                const fileName = `payment-proof-${order.id}-${Date.now()}.${fileExt}`;
 
-            payment_status: "pending_manual",
-
-            order_status: "processing",
-
-            items: orderItemsSnapshot,
-
-            balance_due_date: new Date(
-                Date.now() + 10 * 24 * 60 * 60 * 1000
-            )
-                .toISOString()
-                .split("T")[0]
-        };
-
-        // Insert Order
-        const { data: order, error: insertError } = await supabase
-            .from("orders")
-            .insert([orderData])
-            .select()
-            .single();
-
-        if (insertError) throw insertError;
-
-        let screenshotUrl: string | null = null;
-
-        // Upload Payment Proof
-        if (transactionDetails.photo) {
-
-            const fileExt = transactionDetails.photo.name.split(".").pop();
-
-            const fileName = `payment-proof-${order.id}-${Date.now()}.${fileExt}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from("payment-proofs")
-                .upload(fileName, transactionDetails.photo, {
-                    cacheControl: "3600",
-                    upsert: false
-                });
-
-            if (uploadError) {
-
-                console.error("Upload failed:", uploadError);
-
-            } else {
-
-                const { data } = supabase.storage
+                const { error: uploadError } = await supabase.storage
                     .from("payment-proofs")
-                    .getPublicUrl(fileName);
+                    .upload(fileName, transactionDetails.photo, {
+                        cacheControl: "3600",
+                        upsert: false
+                    });
 
-                screenshotUrl = data.publicUrl;
-            }
-        }
+                if (uploadError) {
 
-        // Save Payment Record
-        const { error: paymentError } = await supabase
-            .from("payments")
-            .insert([
-                {
-                    order_id: order.id,
+                    console.error("Upload failed:", uploadError);
 
-                    user_id: user.id,
+                } else {
 
-                    payment_method: paymentMethod,
+                    const { data } = supabase.storage
+                        .from("payment-proofs")
+                        .getPublicUrl(fileName);
 
-                    payment_amount: advanceAmount,
-
-                    bank_ref_number:
-                        paymentMethod === "bank"
-                            ? transactionDetails.transactionId
-                            : null,
-
-                    utr_number:
-                        paymentMethod === "upi"
-                            ? transactionDetails.utrNumber
-                            : null,
-
-                    payment_screenshot: screenshotUrl,
-
-                    payment_status: "pending"
+                    screenshotUrl = data.publicUrl;
                 }
-            ]);
+            }
 
-        if (paymentError) {
-            console.error("Payment insert failed:", paymentError);
+            // Save Payment Record
+            const { error: paymentError } = await supabase
+                .from("payments")
+                .insert([
+                    {
+                        order_id: order.id,
+
+                        user_id: user.id,
+
+                        payment_method: paymentMethod,
+
+                        payment_amount: advanceAmount,
+
+                        bank_ref_number:
+                            paymentMethod === "bank"
+                                ? transactionDetails.transactionId
+                                : null,
+
+                        utr_number:
+                            paymentMethod === "upi"
+                                ? transactionDetails.utrNumber
+                                : null,
+
+                        payment_screenshot: screenshotUrl,
+
+                        payment_status: "pending"
+                    }
+                ]);
+
+            if (paymentError) {
+                console.error("Payment insert failed:", paymentError);
+            }
+
+            // Clear Cart
+            await supabase
+                .from("cart")
+                .delete()
+                .eq("user_id", user.id);
+
+            window.dispatchEvent(new Event("cartUpdated"));
+
+            toast.success(
+                "Order placed successfully! Payment proof submitted for verification."
+            );
+
+            router.push("/Wholesale/orders");
+
+        } catch (err: any) {
+
+            toast.error(err.message || "An unexpected error occurred");
+
+        } finally {
+
+            setPayLoading(false);
+
+            setShowPaymentProof(false);
         }
-
-        // Clear Cart
-        await supabase
-            .from("cart")
-            .delete()
-            .eq("user_id", user.id);
-
-        window.dispatchEvent(new Event("cartUpdated"));
-
-        toast.success(
-            "Order placed successfully! Payment proof submitted for verification."
-        );
-
-        router.push("/Wholesale/orders");
-
-    } catch (err: any) {
-
-        toast.error(err.message || "An unexpected error occurred");
-
-    } finally {
-
-        setPayLoading(false);
-
-        setShowPaymentProof(false);
-    }
-};
+    };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -356,9 +356,43 @@ export default function CheckoutPage() {
 
 
     // Add these missing handler functions
-    const handleInputChange = (e: any) => {
+    const handleInputChange = (
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    ) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleAddressSubmit = async () => {
+        try {
+            const userStr = localStorage.getItem("wholesale_user");
+            const user = JSON.parse(userStr || "{}");
+
+            if (!formData.full_name || !formData.phone || !formData.street_address || !formData.city) {
+                toast.error("Please fill all required fields");
+                return;
+            }
+
+            const { data, error } = await supabase
+                .from("addresses")
+                .insert([{
+                    user_id: user.id,
+                    ...formData
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            toast.success("Address added!");
+            setDbAddresses(prev => [...prev, data]);
+            setSelectedAddressId(data.id);
+            setSelectedAddressText(`${data.street_address}, ${data.city}`);
+            setShowAddressForm(false);
+            setFormData({ full_name: "", phone: "", street_address: "", city: "", state: "", pincode: "" });
+        } catch (err: any) {
+            toast.error(err.message);
+        }
     };
 
     if (loading) return (
@@ -774,34 +808,3 @@ export default function CheckoutPage() {
 }
 
 
-const handleAddressSubmit = async () => {
-    try {
-        const userStr = localStorage.getItem("wholesale_user");
-        const user = JSON.parse(userStr || "{}");
-
-        if (!formData.full_name || !formData.phone || !formData.street_address || !formData.city) {
-            toast.error("Please fill all required fields");
-            return;
-        }
-
-        const { data, error } = await supabase
-            .from("addresses")
-            .insert([{
-                user_id: user.id,
-                ...formData
-            }])
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        toast.success("Address added!");
-        setDbAddresses(prev => [...prev, data]);
-        setSelectedAddressId(data.id);
-        setSelectedAddressText(`${data.street_address}, ${data.city}`);
-        setShowAddressForm(false);
-        setFormData({ full_name: "", phone: "", street_address: "", city: "", state: "", pincode: "" });
-    } catch (err: any) {
-        toast.error(err.message);
-    }
-};

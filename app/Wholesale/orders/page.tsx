@@ -161,8 +161,7 @@ export default function WholesaleOrders() {
         setProcessingId(order.id);
 
         try {
-            if (!(window as any).Razorpay) await loadRazorpay();
-
+            
             const fullAmount = Number(order.total_payable_amount || order.total_amount);
             const balanceToPay = order.remaining_balance !== null
                 ? Number(order.remaining_balance)

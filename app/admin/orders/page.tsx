@@ -48,10 +48,18 @@ export default function AdminOrdersPage() {
             const { data: ordersData, error } = await supabase
                 .from("orders")
                 .select(`
-                *,
-                wholesale_users:user_id (*),
-                addresses:address_id (*)
-            `)
+    *,
+    wholesale_users:user_id (*),
+    addresses:address_id (*),
+    payments (
+        id,
+        payment_amount,
+        payment_status,
+        payment_method,
+        rejection_reason,
+        created_at
+    )
+`)
                 .order("created_at", { ascending: false });
 
             if (error) throw error;
@@ -216,7 +224,7 @@ export default function AdminOrdersPage() {
     );
 
     return (
-        <div className="min-h-screen bg-[#FDF8F8] p-6 md:p-12">
+        <div className=" bg-[#FDF8F8] p-6 md:p-12">
             <Toaster position="top-right" />
 
             {/* Header Section */}
@@ -318,8 +326,8 @@ export default function AdminOrdersPage() {
                                 <button
                                     onClick={() => setActiveTab("orders")}
                                     className={`px-6 py-2 rounded-xl text-xs font-black uppercase ${activeTab === "orders"
-                                            ? "bg-red-600 text-white"
-                                            : "bg-white text-slate-700"
+                                        ? "bg-red-600 text-white"
+                                        : "bg-white text-slate-700"
                                         }`}
                                 >
                                     Orders
@@ -328,8 +336,8 @@ export default function AdminOrdersPage() {
                                 <button
                                     onClick={() => setActiveTab("past")}
                                     className={`px-6 py-2 rounded-xl text-xs font-black uppercase ${activeTab === "past"
-                                            ? "bg-red-600 text-white"
-                                            : "bg-white text-slate-700"
+                                        ? "bg-red-600 text-white"
+                                        : "bg-white text-slate-700"
                                         }`}
                                 >
                                     Past Orders
@@ -338,8 +346,8 @@ export default function AdminOrdersPage() {
                                 <button
                                     onClick={() => setActiveTab("returns")}
                                     className={`px-6 py-2 rounded-xl text-xs font-black uppercase ${activeTab === "returns"
-                                            ? "bg-red-600 text-white"
-                                            : "bg-white text-slate-700"
+                                        ? "bg-red-600 text-white"
+                                        : "bg-white text-slate-700"
                                         }`}
                                 >
                                     Returns
@@ -368,6 +376,7 @@ export default function AdminOrdersPage() {
                                                 ))}
                                         </div>
                                     </div>
+
                                 </>
                             )}
 
@@ -522,7 +531,61 @@ function OrderCard({ order, updateStatus, getStatusStyle, updating }: any) {
                         <div className="flex flex-col justify-end items-end text-right border-l border-slate-200 pl-6">
                             <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total Payable</p>
                             <div className="text-3xl font-black text-slate-900 tracking-tighter">₹{Number(order.total_payable_amount).toLocaleString()}</div>
-                            <div className="mt-2 text-[10px] font-black text-emerald-600 uppercase">Paid: ₹{Number(order.amount_paid_now).toLocaleString()}</div>
+                            <div className="mt-2 text-[10px] font-black text-emerald-600 uppercase"><div className="mt-2 text-[10px] font-black text-emerald-600 uppercase flex items-center gap-2">
+                                Paid: ₹{Number(order.amount_paid_now).toLocaleString()}
+
+                                {order.payments?.some((p: any) => p.payment_status === "pending") && (
+                                    <span className="text-amber-500">(Verification Pending)</span>
+                                )}
+
+                            </div></div>
+                            {order.payments && order.payments.length > 0 && (
+                                <div className="mt-6 border-t border-slate-200 pt-4">
+
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                                        Payment Verification
+                                    </p>
+
+                                    <div className="space-y-2">
+                                        {order.payments.map((p: any) => (
+                                            <div
+                                                key={p.id}
+                                                className="flex justify-between items-center text-black bg-slate-50 px-4 py-3 rounded-xl border text-xs font-bold"
+                                            >
+                                                <div>
+                                                    ₹{Number(p.payment_amount).toLocaleString()}
+                                                </div>
+
+                                                <div className="flex items-center gap-3">
+
+                                                    <span className="text-[10px] uppercase text-slate-500">
+                                                        {p.payment_method}
+                                                    </span>
+
+                                                    {p.payment_status === "pending" && (
+                                                        <span className="text-amber-600 font-black">
+                                                            Under Review
+                                                        </span>
+                                                    )}
+
+                                                    {p.payment_status === "approved" && (
+                                                        <span className="text-emerald-600 font-black">
+                                                            Verified
+                                                        </span>
+                                                    )}
+
+                                                    {p.payment_status === "rejected" && (
+                                                        <span className="text-red-600 font-black">
+                                                            Rejected
+                                                        </span>
+                                                    )}
+
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <div className="text-[10px] font-black text-red-600 uppercase bg-red-100 px-3 py-1 rounded-lg mt-2">Due: ₹{Number(order.remaining_balance).toLocaleString()}</div>
                         </div>
                     </div>

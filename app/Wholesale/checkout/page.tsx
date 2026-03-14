@@ -1,6 +1,4 @@
-
 "use client";
-import Script from "next/script"; // Add this import
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -8,7 +6,8 @@ import Image from "next/image";
 import Link from "next/link";
 import {
     MapPin, Loader2, ShieldCheck, Package, Building2, Store,
-    Wallet, CheckCircle2, Info, ArrowLeft, Plus, AlertTriangle, ChevronRight
+    Wallet, CheckCircle2, Info, ArrowLeft, Plus, AlertTriangle, ChevronRight,
+    Banknote, Smartphone, Camera, Upload, FileText, X, CreditCard
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -19,6 +18,8 @@ export default function CheckoutPage() {
     const [transportCharge, setTransportCharge] = useState(0);
     const [platformCharge, setPlatformCharge] = useState(80);
     const [handlingCharge, setHandlingCharge] = useState(150);
+    const [showPaymentPopup, setShowPaymentPopup] = useState(false);
+
     // Data States
     const [cartItems, setCartItems] = useState<any[]>([]);
     const [dbAddresses, setDbAddresses] = useState<any[]>([]);
@@ -26,6 +27,7 @@ export default function CheckoutPage() {
     const [selectedAddressId, setSelectedAddressId] = useState<string | null>('reg');
     const [selectedAddressText, setSelectedAddressText] = useState<string>("");
     const [showAddressForm, setShowAddressForm] = useState(false);
+    const [bankDetails, setBankDetails] = useState<any>(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -36,6 +38,14 @@ export default function CheckoutPage() {
     const [totalWithGst, setTotalWithGst] = useState(0);
     const [subtotal, setSubtotal] = useState(0);
     const [advanceAmount, setAdvanceAmount] = useState(0);
+    const [paymentMethod, setPaymentMethod] = useState<'bank' | 'upi'>('bank');
+    const [transactionDetails, setTransactionDetails] = useState({
+        transactionId: "",
+        utrNumber: "",
+        amountPaid: "",
+        photo: null as File | null
+    });
+    const [showPaymentProof, setShowPaymentProof] = useState(false);
     const minPercent = 0.15;
 
     useEffect(() => {
@@ -49,7 +59,14 @@ export default function CheckoutPage() {
 
             const user = JSON.parse(userStr);
 
-            // 1️⃣ LOAD PROFILE FIRST
+            // 1️⃣ LOAD BANK DETAILS (Admin)
+            const { data: bankData } = await supabase
+                .from("bank_details")
+                .select("*")
+                .single();
+            setBankDetails(bankData);
+
+            // 2️⃣ LOAD PROFILE FIRST
             const { data: profile } = await supabase
                 .from("wholesale_users")
                 .select("*")
@@ -74,28 +91,27 @@ export default function CheckoutPage() {
                         icon: <Store size={16} />,
                     },
                 ]);
-
                 setSelectedAddressText(profile.registered_address);
             }
 
-            // 2️⃣ LOAD CART
+            // 3️⃣ LOAD CART
             const { data: cart } = await supabase
                 .from("cart")
                 .select(`
-        id,
-        quantity,
-        product_variants(
-          id,
-          variant,
-          unit,
-          wholesale_price,
-          products(
-            name,
-            brand,
-            product_images(image_url)
-          )
-        )
-      `)
+                    id,
+                    quantity,
+                    product_variants(
+                        id,
+                        variant,
+                        unit,
+                        wholesale_price,
+                        products(
+                            name,
+                            brand,
+                            product_images(image_url)
+                        )
+                    )
+                `)
                 .eq("user_id", user.id);
 
             if (!cart || cart.length === 0) {
@@ -105,7 +121,7 @@ export default function CheckoutPage() {
 
             setCartItems(cart);
 
-            // 3️⃣ CALCULATE TOTALS
+            // 4️⃣ CALCULATE TOTALS
             const calcSubtotal = cart.reduce(
                 (acc: number, item: any) =>
                     acc + item.quantity * item.product_variants.wholesale_price,
@@ -113,7 +129,6 @@ export default function CheckoutPage() {
             );
 
             const gst = calcSubtotal * 0.18;
-
             const grandTotal =
                 calcSubtotal +
                 gst +
@@ -125,7 +140,7 @@ export default function CheckoutPage() {
             setTotalWithGst(grandTotal);
             setAdvanceAmount(Math.ceil(grandTotal * minPercent));
 
-            // 4️⃣ LOAD EXTRA ADDRESSES
+            // 5️⃣ LOAD EXTRA ADDRESSES
             const { data: addr } = await supabase
                 .from("addresses")
                 .select("*")
@@ -139,6 +154,7 @@ export default function CheckoutPage() {
             setLoading(false);
         }
     };
+
     const handleAdvanceChange = (val: number) => {
         if (val > totalWithGst) {
             setAdvanceAmount(Math.floor(totalWithGst));
@@ -152,6 +168,199 @@ export default function CheckoutPage() {
     const isAmountTooLow = advanceAmount < minRequired;
     const remainingBalance = totalWithGst - advanceAmount;
 
+    const handlePaymentProofSubmit = async () => {
+
+    if (
+        (paymentMethod === "bank" && !transactionDetails.transactionId) ||
+        (paymentMethod === "upi" && !transactionDetails.utrNumber)
+    ) {
+        toast.error("Please enter transaction details");
+        return;
+    }
+
+    try {
+
+        setPayLoading(true);
+
+        const userStr = localStorage.getItem("wholesale_user");
+        const user = JSON.parse(userStr || "{}");
+
+        // Generate Custom Order ID
+        const now = new Date();
+        const dateStr = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
+
+        const { count } = await supabase
+            .from("orders")
+            .select("*", { count: "exact", head: true });
+
+        const customId = `JS-${dateStr}${String((count || 0) + 1).padStart(4, "0")}`;
+
+        // Format Items Snapshot
+        const orderItemsSnapshot = cartItems.map((item: any) => ({
+            product_name: item.product_variants.products.name,
+            variant_name: item.product_variants.variant,
+            unit: item.product_variants.unit,
+            quantity: item.quantity,
+            price_at_purchase: item.product_variants.wholesale_price,
+            subtotal: item.quantity * item.product_variants.wholesale_price,
+            image:
+                item.product_variants.products.product_images?.[0]?.image_url || null
+        }));
+
+        // Prepare Order Data
+        const orderData = {
+
+            order_id_custom: customId,
+
+            user_id: user.id,
+
+            address_id:
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                    selectedAddressId || ""
+                )
+                    ? selectedAddressId
+                    : null,
+
+            address_snapshot: selectedAddressText,
+
+            total_amount: parseFloat(totalWithGst.toFixed(2)),
+
+            total_payable_amount: parseFloat(totalWithGst.toFixed(2)),
+
+            amount_paid_now: parseFloat(advanceAmount.toFixed(2)),
+
+            remaining_balance: parseFloat(remainingBalance.toFixed(2)),
+
+            payment_type: advanceAmount >= totalWithGst ? "full" : "partial",
+
+            payment_status: "pending_manual",
+
+            order_status: "processing",
+
+            items: orderItemsSnapshot,
+
+            balance_due_date: new Date(
+                Date.now() + 10 * 24 * 60 * 60 * 1000
+            )
+                .toISOString()
+                .split("T")[0]
+        };
+
+        // Insert Order
+        const { data: order, error: insertError } = await supabase
+            .from("orders")
+            .insert([orderData])
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
+
+        let screenshotUrl: string | null = null;
+
+        // Upload Payment Proof
+        if (transactionDetails.photo) {
+
+            const fileExt = transactionDetails.photo.name.split(".").pop();
+
+            const fileName = `payment-proof-${order.id}-${Date.now()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from("payment-proofs")
+                .upload(fileName, transactionDetails.photo, {
+                    cacheControl: "3600",
+                    upsert: false
+                });
+
+            if (uploadError) {
+
+                console.error("Upload failed:", uploadError);
+
+            } else {
+
+                const { data } = supabase.storage
+                    .from("payment-proofs")
+                    .getPublicUrl(fileName);
+
+                screenshotUrl = data.publicUrl;
+            }
+        }
+
+        // Save Payment Record
+        const { error: paymentError } = await supabase
+            .from("payments")
+            .insert([
+                {
+                    order_id: order.id,
+
+                    user_id: user.id,
+
+                    payment_method: paymentMethod,
+
+                    payment_amount: advanceAmount,
+
+                    bank_ref_number:
+                        paymentMethod === "bank"
+                            ? transactionDetails.transactionId
+                            : null,
+
+                    utr_number:
+                        paymentMethod === "upi"
+                            ? transactionDetails.utrNumber
+                            : null,
+
+                    payment_screenshot: screenshotUrl,
+
+                    payment_status: "pending"
+                }
+            ]);
+
+        if (paymentError) {
+            console.error("Payment insert failed:", paymentError);
+        }
+
+        // Clear Cart
+        await supabase
+            .from("cart")
+            .delete()
+            .eq("user_id", user.id);
+
+        window.dispatchEvent(new Event("cartUpdated"));
+
+        toast.success(
+            "Order placed successfully! Payment proof submitted for verification."
+        );
+
+        router.push("/Wholesale/orders");
+
+    } catch (err: any) {
+
+        toast.error(err.message || "An unexpected error occurred");
+
+    } finally {
+
+        setPayLoading(false);
+
+        setShowPaymentProof(false);
+    }
+};
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+            setTransactionDetails(prev => ({ ...prev, photo: file }));
+            toast.success("Payment proof uploaded!");
+        } else {
+            toast.error("Please upload a valid image file");
+        }
+    };
+
+
+    // Add these missing handler functions
+    const handleInputChange = (e: any) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
     if (loading) return (
         <div className="h-screen flex flex-col items-center justify-center">
             <Loader2 className="animate-spin text-red-600 mb-4" size={40} />
@@ -159,204 +368,11 @@ export default function CheckoutPage() {
         </div>
     );
 
-    const handlePayment = async () => {
-        try {
-            setPayLoading(true);
-
-            // 1. Validation
-            if (!selectedAddressId || !selectedAddressText) {
-                toast.error("Please select a delivery address");
-                setPayLoading(false);
-                return;
-            }
-
-            const userStr = localStorage.getItem("wholesale_user");
-            const user = JSON.parse(userStr || "{}");
-
-            // 2. Generate Custom Order ID (JS-DDMMYYYY0001)
-            const now = new Date();
-            const dateStr = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
-
-            // Fetch count for the current day to make ID sequential
-            const { count } = await supabase
-                .from("orders")
-                .select('*', { count: 'exact', head: true });
-
-            const customId = `JS-${dateStr}${String((count || 0) + 1).padStart(4, '0')}`;
-
-            // 3. Format Items for JSONB storage
-            const orderItemsSnapshot = cartItems.map(item => ({
-                product_name: item.product_variants.products.name,
-                variant_name: item.product_variants.variant,
-                unit: item.product_variants.unit,
-                quantity: item.quantity,
-                price_at_purchase: item.product_variants.wholesale_price,
-                subtotal: item.quantity * item.product_variants.wholesale_price,
-                image: item.product_variants.products.product_images?.[0]?.image_url || null
-            }));
-
-            // 4. Prepare Order Data (Matching your SQL Schema)
-            const orderData = {
-                order_id_custom: customId,
-                user_id: user.id,
-                // If selectedAddressId is a valid UUID (not 'reg' or 'shop'), pass it, else null
-                address_id: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedAddressId)
-                    ? selectedAddressId
-                    : null,
-                address_snapshot: selectedAddressText,
-                total_amount: parseFloat(totalWithGst.toFixed(2)),
-                total_payable_amount: parseFloat(totalWithGst.toFixed(2)),
-                amount_paid_now: parseFloat(advanceAmount.toFixed(2)),
-                remaining_balance: parseFloat(remainingBalance.toFixed(2)),
-                payment_type: advanceAmount >= totalWithGst ? 'full' : 'partial',
-                payment_status: 'pending',
-                order_status: 'processing',
-                items: orderItemsSnapshot, // JSONB
-                balance_due_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-            };
-
-            // 5. Insert Initial Order (Pending State)
-            const { data: order, error: insertError } = await supabase
-                .from("orders")
-                .insert([orderData])
-                .select()
-                .single();
-
-            if (insertError) throw insertError;
-
-            // 6. Razorpay Configuration
-            const options = {
-                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-                amount: Math.round(advanceAmount * 100), // Amount in paise
-                currency: "INR",
-                name: "JumboStar Wholesale",
-                description: `Order ${customId}`,
-                handler: async function (response: any) {
-                    const paymentStatus = advanceAmount >= totalWithGst ? "paid" : "partially_paid";
-
-                    // 1. Update Order Payment Details
-                    const { error: updateError } = await supabase
-                        .from("orders")
-                        .update({
-                            payment_id: response.razorpay_payment_id,
-                            payment_status: paymentStatus
-                        })
-                        .eq("id", order.id);
-
-                    if (updateError) {
-                        console.error("Order Update Error:", updateError);
-                        toast.error("Payment succeeded but order update failed.");
-                        return;
-                    }
-
-                    // 2. REDUCE STOCK FOR EACH ITEM
-                    try {
-                        // We use Promise.all to run these updates efficiently
-                        await Promise.all(cartItems.map(async (item) => {
-                            const { error: stockError } = await supabase.rpc('reduce_stock', {
-                                variant_id: item.product_variants.id,
-                                qty_to_reduce: item.quantity
-                            });
-
-                            if (stockError) {
-                                console.error(`Stock reduction failed for ${item.product_variants.id}:`, stockError);
-                            }
-                        }));
-                    } catch (err) {
-                        console.error("Critical Stock Update Error:", err);
-                    }
-
-                    // 3. SEND ORDER EMAIL
-                    try {
-                        await fetch("/api/send-order-email", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                email: user.email,
-                                orderId: customId,
-                                status: "Order Placed",
-                                items: orderItemsSnapshot,
-                                total: totalWithGst,
-                                paid: advanceAmount,
-                                remaining: remainingBalance,
-                                address: selectedAddressText,
-                            }),
-                        });
-                    } catch (emailErr) {
-                        console.error("Email failed:", emailErr);
-                    }
-
-                    // 4. CLEAR CART
-                    await supabase.from("cart").delete().eq("user_id", user.id);
-
-                    // 5. FINALIZE
-                    window.dispatchEvent(new Event("cartUpdated"));
-                    toast.success("Order Placed Successfully!");
-                    router.push("/Wholesale/orders");
-                },
-                prefill: {
-                    name: user.full_name || "",
-                    contact: user.phone || "",
-                    email: user.email || ""
-                },
-                theme: { color: "#FF4F18" },
-                modal: {
-                    ondismiss: () => setPayLoading(false)
-                }
-            };
-
-            const rzp = new (window as any).Razorpay(options);
-            rzp.open();
-
-        } catch (err: any) {
-            console.error("Checkout Process Error:", err);
-            toast.error(err.message || "An unexpected error occurred during checkout.");
-            setPayLoading(false);
-        }
-    };
-
-    const handleInputChange = (e: any) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleAddressSubmit = async () => {
-        try {
-            const userStr = localStorage.getItem("wholesale_user");
-            const user = JSON.parse(userStr || "{}");
-
-            if (!formData.full_name || !formData.phone || !formData.street_address || !formData.city) {
-                toast.error("Please fill all required fields");
-                return;
-            }
-
-            const { data, error } = await supabase
-                .from("addresses")
-                .insert([{
-                    user_id: user.id,
-                    ...formData
-                }])
-                .select()
-                .single();
-
-            if (error) throw error;
-
-            toast.success("Address added!");
-            setDbAddresses(prev => [...prev, data]);
-            setSelectedAddressId(data.id);
-            setSelectedAddressText(`${data.street_address}, ${data.city}`);
-            setShowAddressForm(false);
-            setFormData({ full_name: "", phone: "", street_address: "", city: "", state: "", pincode: "" });
-        } catch (err: any) {
-            toast.error(err.message);
-        }
-    };
-
     return (
         <div className="min-h-screen bg-slate-50/50 pb-20 font-sans">
             <Toaster position="top-right" />
-            <Script src="https://checkout.razorpay.com/v1/checkout.js" />
-            {/* Editorial Header (Matching Cart Page) */}
+
+            {/* Editorial Header */}
             <div className="bg-white border-b border-slate-100 py-12 px-4 mb-10">
                 <div className="max-w-7xl mx-auto">
                     <Link href="/Wholesale/cart" className="group flex items-center gap-2 text-slate-400 hover:text-red-600 transition-colors mb-6 text-[10px] font-black uppercase tracking-widest">
@@ -378,8 +394,7 @@ export default function CheckoutPage() {
 
                 {/* LEFT SIDE: DETAILS */}
                 <div className="lg:col-span-8 space-y-8">
-
-                    {/* 1. SHIPPING ADDRESS SECTION */}
+                    {/* SHIPPING ADDRESS SECTION - SAME AS BEFORE */}
                     <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
                         <div className="flex justify-between items-center mb-8">
                             <h3 className="text-sm font-black uppercase tracking-tighter text-slate-900 flex items-center gap-2">
@@ -400,28 +415,28 @@ export default function CheckoutPage() {
                                     <input
                                         name="full_name"
                                         value={formData.full_name}
-                                        onChange={handleInputChange}
+                                        onChange={(e) => handleInputChange(e)}
                                         placeholder="Full Name"
                                         className="col-span-2 p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold"
                                     />
                                     <input
                                         name="phone"
                                         value={formData.phone}
-                                        onChange={handleInputChange}
+                                        onChange={(e) => handleInputChange(e)}
                                         placeholder="Phone"
                                         className="p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold"
                                     />
                                     <input
                                         name="city"
                                         value={formData.city}
-                                        onChange={handleInputChange}
+                                        onChange={(e) => handleInputChange(e)}
                                         placeholder="City"
                                         className="p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold"
                                     />
                                     <textarea
                                         name="street_address"
                                         value={formData.street_address}
-                                        onChange={handleInputChange}
+                                        onChange={(e) => handleInputChange(e)}
                                         placeholder="Full Street Address"
                                         className="col-span-2 p-4 bg-white rounded-2xl border border-slate-200 outline-none focus:border-red-600 text-xs font-bold h-20"
                                     />
@@ -459,7 +474,7 @@ export default function CheckoutPage() {
                         )}
                     </div>
 
-                    {/* 2. ORDER MANIFEST (Matches Cart Page Items) */}
+                    {/* ORDER MANIFEST - SAME AS BEFORE */}
                     <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
                         <div className="bg-slate-50/50 px-8 py-5 border-b border-slate-100 flex justify-between">
                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Item Breakdown</span>
@@ -478,8 +493,8 @@ export default function CheckoutPage() {
                                             </div>
                                             <div>
                                                 <h4 className="font-black text-slate-900 uppercase text-xs mb-0.5">{product.name}</h4>
-                                                <p className="text-[9px] text-slate-400 font-bold  tracking-tighter">Qty: {item.quantity}</p>
-                                                <span className="font-black text-slate-900 text-sm">{variant.variant} - {variant.unit}  </span>
+                                                <p className="text-[9px] text-slate-400 font-bold tracking-tighter">Qty: {item.quantity}</p>
+                                                <span className="font-black text-slate-900 text-sm">{variant.variant} - {variant.unit}</span>
                                             </div>
                                         </div>
                                         <span className="font-black text-slate-900 text-sm">₹{(item.quantity * variant.wholesale_price).toLocaleString()}</span>
@@ -509,7 +524,6 @@ export default function CheckoutPage() {
                                     <div className="text-xs font-bold text-slate-400 uppercase">Bulk GST (18%)</div>
                                     <div className="text-sm font-black">₹{(subtotal * 0.18).toLocaleString()}</div>
                                 </div>
-
                                 <div className="flex justify-between items-end">
                                     <div className="text-xs font-bold text-slate-400 uppercase">Transport Charge</div>
                                     <div className="text-sm font-black">₹{transportCharge.toLocaleString()}</div>
@@ -518,7 +532,6 @@ export default function CheckoutPage() {
                                     <div className="text-xs font-bold text-slate-400 uppercase">Platform Fee</div>
                                     <div className="text-sm font-black">₹{platformCharge.toLocaleString()}</div>
                                 </div>
-
                                 <div className="flex justify-between items-end">
                                     <div className="text-xs font-bold text-slate-400 uppercase">Handling Charge</div>
                                     <div className="text-sm font-black">₹{handlingCharge.toLocaleString()}</div>
@@ -564,22 +577,26 @@ export default function CheckoutPage() {
                                 </div>
                             </div>
 
+                            {/* FIXED BUTTON - Always clickable, opens popup */}
                             <button
-                                onClick={handlePayment} // <--- ADD THIS LINE
-                                disabled={payLoading || isAmountTooLow || !selectedAddressId}
-                                className={`w-full py-6 rounded-3xl font-black uppercase tracking-[0.2em] text-xs transition-all flex items-center justify-center gap-3 shadow-xl 
-        ${isAmountTooLow
-                                        ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-                                        : "bg-red-600 hover:bg-slate-900 text-white shadow-red-200 hover:scale-[1.02]"
+                                onClick={() => {
+                                    if (!selectedAddressId || !selectedAddressText) {
+                                        toast.error("Please select a delivery address first");
+                                        return;
+                                    }
+                                    setShowPaymentPopup(true);
+                                }}
+                                className={`w-full py-6 rounded-3xl font-black uppercase tracking-[0.2em] text-xs transition-all flex items-center justify-center gap-3 shadow-xl ${isAmountTooLow
+                                    ? "bg-orange-500 hover:bg-orange-600 text-white shadow-orange-200"
+                                    : "bg-red-600 hover:bg-slate-900 text-white shadow-red-200 hover:scale-[1.02]"
                                     }`}
+                                disabled={payLoading}
                             >
                                 {payLoading ? (
                                     <Loader2 className="animate-spin" size={18} />
-                                ) : isAmountTooLow ? (
-                                    "Insufficient Advance"
                                 ) : (
                                     <>
-                                        <Package size={18} /> Reserve & Pay Advance
+                                        <Wallet size={18} /> Pay Advance via Bank/UPI
                                     </>
                                 )}
                             </button>
@@ -595,6 +612,196 @@ export default function CheckoutPage() {
                 </div>
 
             </div>
+            {/* BANK/UPI PAYMENT POPUP */}
+            {showPaymentPopup && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+
+                        {/* Header Section - Clean White/Slate */}
+                        <div className="bg-white border-b border-slate-100 p-6 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center">
+                                    <Wallet className="text-red-600" size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Secure Checkout</h3>
+                                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Transaction Protocol v2.0</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowPaymentPopup(false)}
+                                className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="overflow-y-auto custom-scrollbar bg-white">
+                            {bankDetails ? (
+                                <div className="p-8">
+                                    {/* Top Row: Info Cards */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                                        <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">Total Amount</span>
+                                            <p className="text-3xl font-black text-slate-900">₹{advanceAmount.toLocaleString()}</p>
+                                        </div>
+
+                                        <div className="md:col-span-2 flex bg-slate-50 p-1.5 rounded-3xl border border-slate-100">
+                                            <button
+                                                onClick={() => setPaymentMethod('bank')}
+                                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-[11px] uppercase transition-all ${paymentMethod === 'bank' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                                            >
+                                                <Building2 size={16} /> Bank Transfer
+                                            </button>
+                                            <button
+                                                onClick={() => setPaymentMethod('upi')}
+                                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-[11px] uppercase transition-all ${paymentMethod === 'upi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                                            >
+                                                <Smartphone size={16} /> UPI / QR
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Main Horizontal Workspace */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+
+                                        {/* Left: Credentials Display */}
+                                        <div className="space-y-6">
+                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] px-2">Payment Details</h4>
+                                            {paymentMethod === 'bank' ? (
+                                                <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden">
+                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16" />
+                                                    <div className="space-y-6 relative z-10">
+                                                        <div>
+                                                            <p className="text-[10px] text-slate-400 uppercase font-bold">Account Name</p>
+                                                            <p className="text-lg font-bold">{bankDetails.account_name}</p>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <p className="text-[10px] text-slate-400 uppercase font-bold">Account Number</p>
+                                                                <p className="text-lg font-mono font-bold tracking-widest text-red-500">{bankDetails.account_number}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[10px] text-slate-400 uppercase font-bold">IFSC</p>
+                                                                <p className="text-lg font-mono font-bold">{bankDetails.ifsc_code}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-white border-2 border-slate-900 rounded-[2rem] p-8 flex flex-col items-center">
+                                                    <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 mb-4">
+                                                        {bankDetails.qr_image ? (
+                                                            <Image src={bankDetails.qr_image} alt="QR" width={160} height={160} className="rounded-xl" />
+                                                        ) : (
+                                                            <QrCode size={120} className="text-slate-200" />
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Scan or Pay to UPI ID</p>
+                                                    <p className="text-2xl font-black text-slate-900 select-all">{bankDetails.upi_id}</p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Right: Verification Form */}
+                                        <div className="space-y-6">
+                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] px-2">Verify Transaction</h4>
+
+                                            <div className="space-y-4">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                                                        {paymentMethod === 'bank' ? 'Bank Ref Number' : 'UPI UTR Number'}
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Enter Transaction ID..."
+                                                        value={paymentMethod === 'bank' ? transactionDetails.transactionId : transactionDetails.utrNumber}
+                                                        onChange={(e) => setTransactionDetails(prev => ({
+                                                            ...prev,
+                                                            [paymentMethod === 'bank' ? 'transactionId' : 'utrNumber']: e.target.value
+                                                        }))}
+                                                        /* FIXED: text-slate-900 for visibility */
+                                                        className="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-2xl font-bold text-slate-900 placeholder:text-slate-300 focus:border-slate-900 focus:bg-white outline-none transition-all"
+                                                    />
+                                                </div>
+
+                                                <label className="relative group cursor-pointer block">
+                                                    <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                                                    <div className={`w-full py-10 border-2 border-dashed rounded-[2rem] transition-all flex flex-col items-center justify-center gap-3 ${transactionDetails.photo ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200 group-hover:bg-slate-100'}`}>
+                                                        {transactionDetails.photo ? (
+                                                            <>
+                                                                <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
+                                                                    <CheckCircle2 size={24} />
+                                                                </div>
+                                                                <p className="font-black text-green-600 uppercase text-[10px]">Receipt Uploaded Successfully</p>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Camera size={32} className="text-slate-300 group-hover:scale-110 transition-transform" />
+                                                                <p className="font-black text-slate-400 uppercase text-[10px]">Click to upload payment proof</p>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </label>
+                                            </div>
+
+                                            {/* Final Action - ENABLED ONLY AFTER FILE UPLOAD */}
+                                            <button
+                                                onClick={handlePaymentProofSubmit}
+                                                disabled={!transactionDetails.photo || payLoading}
+                                                className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all ${!transactionDetails.photo || payLoading
+                                                    ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
+                                                    : 'bg-red-600 text-white shadow-xl shadow-red-600/30 hover:bg-red-700 hover:scale-[1.01] active:scale-95'
+                                                    }`}
+                                            >
+                                                {payLoading ? <Loader2 className="animate-spin" size={20} /> : <><CreditCard size={20} /> Confirm Payment</>}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-20 text-center">
+                                    <AlertCircle size={64} className="mx-auto text-slate-100 mb-4" />
+                                    <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">Gateway Configuration Required</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+
+
+const handleAddressSubmit = async () => {
+    try {
+        const userStr = localStorage.getItem("wholesale_user");
+        const user = JSON.parse(userStr || "{}");
+
+        if (!formData.full_name || !formData.phone || !formData.street_address || !formData.city) {
+            toast.error("Please fill all required fields");
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from("addresses")
+            .insert([{
+                user_id: user.id,
+                ...formData
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        toast.success("Address added!");
+        setDbAddresses(prev => [...prev, data]);
+        setSelectedAddressId(data.id);
+        setSelectedAddressText(`${data.street_address}, ${data.city}`);
+        setShowAddressForm(false);
+        setFormData({ full_name: "", phone: "", street_address: "", city: "", state: "", pincode: "" });
+    } catch (err: any) {
+        toast.error(err.message);
+    }
+};

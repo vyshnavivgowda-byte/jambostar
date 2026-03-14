@@ -240,7 +240,7 @@ export default function ProductGalleryPage() {
                         )}
                       </>
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-slate-300 italic"><Package size={40} /></div>
+                      <div className="flex flex-col items-center justify-center h-full text-slate-300 "><Package size={40} /></div>
                     )}
                   </div>
 

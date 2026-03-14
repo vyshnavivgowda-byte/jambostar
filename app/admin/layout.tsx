@@ -6,18 +6,19 @@ import {
   LayoutDashboard,
   Boxes,
   Layers,
-  ListTree, // Added for Inner Categories
+  ListTree, CreditCard, 
   PackagePlus,
-  Edit,Truck,
+  Edit,
+  Truck,
   Users,
   ShoppingCart,
   ImageIcon,
   LogOut,
   Bell,
   ChevronRight,
-  UserCircle
+  UserCircle,
+  Landmark   // ✅ ADD THIS
 } from "lucide-react";
-
 export default function AdminHeader({
   children,
 }: {
@@ -52,7 +53,9 @@ export default function AdminHeader({
     { name: "Add Product", path: "/admin/add-product", icon: PackagePlus },
     { name: "Update Price & Stock", path: "/admin/update-stock", icon: Edit },
     { name: "Wholesale Management", path: "/admin/wholesale", icon: Users },
+    { name: "Bank Details", path: "/admin/bank-details", icon: Landmark },
     { name: "Orders", path: "/admin/orders", icon: ShoppingCart },
+    { name: "Payment Approvals", path: "/admin/payment-approvals", icon: CreditCard },
     // --- DELIVERY ALLOTMENT TAB ADDED HERE ---
     { name: "Delivery Allotment", path: "/admin/delivery", icon: Truck },
     // -----------------------------------------

@@ -7,26 +7,80 @@ import {
     ShoppingBag, X, AlertOctagon, Package, Clock, Check, ChevronRight, Wallet
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
-
+import { jsPDF } from "jspdf";
 export default function DeliveryDashboard() {
     const [orders, setOrders] = useState<any[]>([]);
     const [rider, setRider] = useState<any>(null);
+
     const [loading, setLoading] = useState(true);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [activeFilter, setActiveFilter] = useState("out_for_delivery");
-
+    const [bankDetails, setBankDetails] = useState<any>(null);
     const [paymentModal, setPaymentModal] = useState<{ show: boolean, order: any | null }>({ show: false, order: null });
     const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
     const [itemReasons, setItemReasons] = useState<Record<string, string>>({});
     const [utrNumber, setUtrNumber] = useState("");
+    const [paymentMethod, setPaymentMethod] = useState("cash");
+    const [screenshot, setScreenshot] = useState<File | null>(null);
+    const fetchBankDetails = async () => {
+        const { data, error } = await supabase
+            .from("bank_details")
+            .select("*")
+            .limit(1)
+            .single();
 
+        if (!error) setBankDetails(data);
+    };
     useEffect(() => {
         const riderStr = localStorage.getItem("delivery_user");
         if (!riderStr) { window.location.href = "/deliverylogin"; return; }
+
         const user = JSON.parse(riderStr);
         setRider(user);
+
         fetchOrders(user.id);
+        fetchBankDetails();
     }, []);
+
+   const downloadBankPDF = async () => {
+    if (!bankDetails) return;
+
+    const doc = new jsPDF();
+
+    doc.setFontSize(20);
+    doc.text("Bank Payment Details", 20, 20);
+
+    doc.setFontSize(12);
+    doc.text(`Account Name: ${bankDetails.account_name}`, 20, 40);
+    doc.text(`Bank: ${bankDetails.bank_name}`, 20, 50);
+    doc.text(`Account Number: ${bankDetails.account_number}`, 20, 60);
+    doc.text(`IFSC: ${bankDetails.ifsc_code}`, 20, 70);
+    doc.text(`UPI ID: ${bankDetails.upi_id}`, 20, 80);
+
+    // ===== QR IMAGE ADD =====
+    if (bankDetails.qr_image) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = bankDetails.qr_image;
+
+        img.onload = () => {
+            doc.text("Scan & Pay", 20, 100);
+
+            doc.addImage(
+                img,
+                "PNG",
+                20,
+                110,
+                60,
+                60
+            );
+
+            doc.save("bank_details.pdf");
+        };
+    } else {
+        doc.save("bank_details.pdf");
+    }
+};
 
     const fetchOrders = async (riderId: string) => {
         // We select everything from orders, plus the business_id from the linked wholesale_user
@@ -126,16 +180,58 @@ export default function DeliveryDashboard() {
             }
 
             // --- STEP B: UPDATE ORDER STATUS ---
+            // --- STEP B: UPDATE ORDER STATUS ---
             const isFullCancel = selectedItemIds.length === 0;
+
             const updateData = {
                 order_status: isFullCancel ? "cancelled" : "delivered",
                 payment_status: "paid",
                 amount_paid_now: newTotal,
                 remaining_balance: 0,
-                utr_number: utrNumber || null,
                 items: order.items.filter((_: any, i: number) => selectedItemIds.includes(`item-${i}`))
             };
 
+
+
+            // ===== UPLOAD SCREENSHOT HERE =====
+
+            let screenshotUrl = null;
+
+            if (paymentMethod === "upi" && screenshot) {
+
+                const fileName = `payment-${Date.now()}.jpg`;
+
+                const { data, error } = await supabase.storage
+                    .from("payment-proofs")
+                    .upload(fileName, screenshot);
+
+                if (error) throw error;
+
+                const { data: publicUrl } = supabase.storage
+                    .from("payment-proofs")
+                    .getPublicUrl(fileName);
+
+                screenshotUrl = publicUrl.publicUrl;
+            }
+
+
+
+            // --- STEP C: SAVE PAYMENT RECORD ---
+
+            const { error: paymentError } = await supabase
+                .from("payments")
+                .insert({
+                    order_id: order.id,
+                    order_id_custom: order.order_id_custom,
+                    user_id: order.user_id,
+                    payment_method: paymentMethod,
+                    payment_amount: newTotal,
+                    utr_number: paymentMethod === "upi" ? utrNumber : null,
+                    payment_screenshot: screenshotUrl,
+                    payment_status: paymentMethod === "cash" ? "approved" : "pending"
+                });
+
+            if (paymentError) throw paymentError;
             const { error: orderError } = await supabase
                 .from("orders")
                 .update(updateData)
@@ -149,7 +245,9 @@ export default function DeliveryDashboard() {
 
         } catch (err: any) {
             console.error("Return Process Error:", err);
-            toast.error(err.message || "Process failed");
+            console.error("Supabase error details:", JSON.stringify(err, null, 2));
+
+            toast.error(err?.message || err?.error_description || "Process failed");
         } finally {
             setUpdatingId(null);
         }
@@ -186,7 +284,32 @@ export default function DeliveryDashboard() {
                     </div>
                 </div>
             </div>
+            {bankDetails && (
+                <div className="mx-6 -mt-16 mb-10 bg-white rounded-[3rem] p-6 shadow-2xl border border-slate-100">
 
+                    <p className="text-xs font-black uppercase text-slate-400 mb-4">
+                        Bank Transfer Details
+                    </p>
+
+                    <div className="grid grid-cols-1 gap-2 text-xs font-bold text-slate-700">
+
+                        <p>Account Name: {bankDetails.account_name}</p>
+                        <p>Bank: {bankDetails.bank_name}</p>
+                        <p>Account Number: {bankDetails.account_number}</p>
+                        <p>IFSC: {bankDetails.ifsc_code}</p>
+                        <p>UPI ID: {bankDetails.upi_id}</p>
+
+                    </div>
+
+                    <button
+                        onClick={downloadBankPDF}
+                        className="mt-4 w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-black uppercase"
+                    >
+                        Download Bank Details PDF
+                    </button>
+
+                </div>
+            )}
             {/* FILTERS */}
             <div className="px-6 -mt-8">
                 <div className="bg-white p-2 rounded-3xl shadow-xl flex gap-2 border border-slate-100">
@@ -284,6 +407,54 @@ export default function DeliveryDashboard() {
             {paymentModal.show && (
                 <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/70 backdrop-blur-md p-4">
                     <div className="bg-white w-full max-w-lg rounded-[3.5rem] p-8 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-20 duration-500">
+                        <div className="mb-6">
+
+                            <p className="text-xs font-black uppercase text-slate-400 mb-3">
+                                Payment Method
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-3">
+
+                                <button
+                                    onClick={() => setPaymentMethod("cash")}
+                                    className={`p-4 rounded-xl border font-black text-xs ${paymentMethod === "cash"
+                                        ? "bg-green-600 text-white"
+                                        : "bg-white"
+                                        }`}
+                                >
+                                    Cash
+                                </button>
+
+                                <button
+                                    onClick={() => setPaymentMethod("upi")}
+                                    className={`p-4 rounded-xl border font-black text-xs ${paymentMethod === "upi"
+                                        ? "bg-green-600 text-white"
+                                        : "bg-white"
+                                        }`}
+                                >
+                                    UPI
+                                </button>
+
+                            </div>
+
+                        </div>
+                        {paymentMethod === "upi" && (
+                            <>
+                                <input
+                                    placeholder="Enter UTR Number"
+                                    value={utrNumber}
+                                    onChange={(e) => setUtrNumber(e.target.value)}
+                                    className="w-full p-5 border rounded-xl text-sm mb-4"
+                                />
+
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e: any) => setScreenshot(e.target.files[0])}
+                                    className="w-full p-4 border rounded-xl text-sm"
+                                />
+                            </>
+                        )}
                         <div className="flex justify-between items-center mb-8">
                             <h3 className="font-black uppercase text-base tracking-widest">Confirm Delivery</h3>
                             <button onClick={() => setPaymentModal({ show: false, order: null })} className="p-3 bg-slate-100 rounded-2xl"><X size={24} /></button>
@@ -328,7 +499,7 @@ export default function DeliveryDashboard() {
                                 <span className="text-xs font-bold uppercase text-slate-400 tracking-widest">Final Amount to Collect</span>
                                 <span className="text-3xl font-black">₹{calculateNewTotal()}</span>
                             </div>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase italic">* Excluding returned items</p>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase ">* Excluding returned items</p>
                         </div>
 
                         <button

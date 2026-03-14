@@ -137,7 +137,7 @@ useEffect(() => {
                                 </span>
                             </div>
                             <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-slate-900 tracking-[-0.05em] flex items-center gap-x-4 flex-wrap">
-                                Product <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-orange-400 italic font-serif font-light">Library</span>
+                                Product <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-orange-400  font-serif font-light">Library</span>
                             </h1>
                         </div>
 

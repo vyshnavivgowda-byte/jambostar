@@ -128,7 +128,7 @@ export default function WholesaleProfile() {
                                     <p className="text-sm text-slate-300">{profile.email}</p>
                                 </div>
                             </div>
-                            <p className="mt-8 text-[9px] leading-relaxed text-slate-500 uppercase font-bold italic">
+                            <p className="mt-8 text-[9px] leading-relaxed text-slate-500 uppercase font-bold ">
                                 * To change your GST or Company name, please contact our wholesale support desk.
                             </p>
                         </div>

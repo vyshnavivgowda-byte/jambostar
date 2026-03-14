@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
     MapPin, Loader2, ShieldCheck, Package, Building2, Store,
     Wallet, CheckCircle2, Info, ArrowLeft, Plus, AlertTriangle, ChevronRight,
-    Banknote, Smartphone, Camera, Upload, FileText, X, CreditCard, QrCode 
+    Banknote, Smartphone, Camera, Upload, FileText, X, CreditCard, QrCode , AlertCircle
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 

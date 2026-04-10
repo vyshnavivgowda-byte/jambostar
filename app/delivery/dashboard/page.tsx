@@ -42,67 +42,99 @@ export default function DeliveryDashboard() {
         fetchBankDetails();
     }, []);
 
-   const downloadBankPDF = async () => {
-    if (!bankDetails) return;
+    const downloadBankPDF = async () => {
+        if (!bankDetails) return;
 
-    const doc = new jsPDF();
+        const doc = new jsPDF();
 
-    doc.setFontSize(20);
-    doc.text("Bank Payment Details", 20, 20);
+        doc.setFontSize(20);
+        doc.text("Bank Payment Details", 20, 20);
 
-    doc.setFontSize(12);
-    doc.text(`Account Name: ${bankDetails.account_name}`, 20, 40);
-    doc.text(`Bank: ${bankDetails.bank_name}`, 20, 50);
-    doc.text(`Account Number: ${bankDetails.account_number}`, 20, 60);
-    doc.text(`IFSC: ${bankDetails.ifsc_code}`, 20, 70);
-    doc.text(`UPI ID: ${bankDetails.upi_id}`, 20, 80);
+        doc.setFontSize(12);
+        doc.text(`Account Name: ${bankDetails.account_name}`, 20, 40);
+        doc.text(`Bank: ${bankDetails.bank_name}`, 20, 50);
+        doc.text(`Account Number: ${bankDetails.account_number}`, 20, 60);
+        doc.text(`IFSC: ${bankDetails.ifsc_code}`, 20, 70);
+        doc.text(`UPI ID: ${bankDetails.upi_id}`, 20, 80);
 
-    // ===== QR IMAGE ADD =====
-    if (bankDetails.qr_image) {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.src = bankDetails.qr_image;
+        // ===== QR IMAGE ADD =====
+        if (bankDetails.qr_image) {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = bankDetails.qr_image;
 
-        img.onload = () => {
-            doc.text("Scan & Pay", 20, 100);
+            img.onload = () => {
+                doc.text("Scan & Pay", 20, 100);
 
-            doc.addImage(
-                img,
-                "PNG",
-                20,
-                110,
-                60,
-                60
-            );
+                doc.addImage(
+                    img,
+                    "PNG",
+                    20,
+                    110,
+                    60,
+                    60
+                );
 
-            doc.save("bank_details.pdf");
-        };
-    } else {
-        doc.save("bank_details.pdf");
-    }
-};
-
-    const fetchOrders = async (riderId: string) => {
-        // We select everything from orders, plus the business_id from the linked wholesale_user
-        const { data, error } = await supabase
-            .from("orders")
-            .select(`
-            *,
-            wholesale_users (
-                business_id
-            )
-        `)
-            .eq("delivery_person_id", riderId)
-            .order("created_at", { ascending: false });
-
-        if (error) {
-            toast.error("Error loading tasks");
-            console.error("Fetch Error:", error);
+                doc.save("bank_details.pdf");
+            };
         } else {
-            setOrders(data || []);
+            doc.save("bank_details.pdf");
         }
-        setLoading(false);
     };
+
+    // Add this to your useState hooks
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+    // Update fetchOrders to join the images from the products table
+const fetchOrders = async (riderId: string) => {
+    setLoading(true);
+    const { data: ordersData, error: ordersError } = await supabase
+        .from("orders")
+        .select(`*, wholesale_users (business_id)`)
+        .eq("delivery_person_id", riderId)
+        .order("created_at", { ascending: false });
+
+    if (ordersError) {
+        toast.error("Error loading tasks");
+        setLoading(false);
+        return;
+    }
+
+    const allItems = ordersData.flatMap(order => order.items || []);
+    const productNames = [...new Set(allItems.map((item: any) => item.product_name))];
+
+    // Fetch images
+    const { data: imageData, error: imageError } = await supabase
+        .from("product_images")
+        .select(`image_url, products!inner(name)`)
+        .in("products.name", productNames);
+
+    if (!imageError && imageData) {
+        // IMPROVED LOOKUP: Ensure we take the first available image for the product name
+        const imageLookup: Record<string, string> = {};
+        imageData.forEach((curr: any) => {
+            const name = curr.products.name;
+            // Only set if not already present to keep the "1st" image found
+            if (!imageLookup[name]) {
+                imageLookup[name] = curr.image_url;
+            }
+        });
+
+        const ordersWithImages = ordersData.map(order => ({
+            ...order,
+            items: (order.items || []).map((item: any) => ({
+                ...item,
+                // Priority: Existing item image > Lookup Map > Placeholder
+                image_url: item.image_url || imageLookup[item.product_name] || null
+            }))
+        }));
+
+        setOrders(ordersWithImages);
+    } else {
+        setOrders(ordersData);
+    }
+    setLoading(false);
+};
     const filteredOrders = orders.filter(o => {
         if (activeFilter === "all") return true;
         if (activeFilter === "delivered") return o.order_status === "delivered";
@@ -357,12 +389,32 @@ export default function DeliveryDashboard() {
                             </div>
 
                             {/* Detailed Products List */}
+                            {/* Detailed Products List */}
                             <div className="bg-slate-50 rounded-[2rem] p-5 mb-8">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Items in Parcel</p>
-                                <div className="space-y-3">
+                                <div className="space-y-4">
                                     {order.items?.map((item: any, idx: number) => (
-                                        <div key={idx} className="flex justify-between items-center border-b border-slate-200 pb-2 last:border-0 last:pb-0">
-                                            <p className="text-xs font-black uppercase text-slate-700">{item.product_name} <span className="text-slate-400 ml-1">x{item.quantity}</span></p>
+                                        <div key={idx} className="flex items-center gap-4 border-b border-slate-200 pb-3 last:border-0 last:pb-0">
+                                            {/* PRODUCT IMAGE THUMBNAIL */}
+                                            <div
+                                                className="w-12 h-12 rounded-xl bg-slate-200 overflow-hidden flex-shrink-0 cursor-pointer border border-slate-200"
+                                                onClick={() => setPreviewImage(item.image_url || '/placeholder-product.png')}
+                                            >
+                                                <img
+                                                    src={item.image_url || '/placeholder-product.png'}
+                                                    alt="product"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            </div>
+
+                                            <div className="flex-1">
+                                                <p className="text-xs font-black uppercase text-slate-700">
+                                                    {item.product_name}
+                                                    <span className="text-slate-400 ml-1">x{item.quantity}</span>
+                                                </p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase">Unit: {item.unit || 'pcs'}</p>
+                                            </div>
+
                                             <p className="text-xs font-black text-slate-900">₹{item.subtotal}</p>
                                         </div>
                                     ))}
@@ -462,36 +514,50 @@ export default function DeliveryDashboard() {
 
                         <div className="space-y-4 mb-8">
                             {paymentModal.order.items.map((item: any, i: number) => {
-                                const itemId = `item-${i}`;
-                                const isSelected = selectedItemIds.includes(itemId);
-                                return (
-                                    <div key={i} className="space-y-3">
-                                        <div
-                                            onClick={() => setSelectedItemIds(prev => isSelected ? prev.filter(id => id !== itemId) : [...prev, itemId])}
-                                            className={`flex items-center gap-5 p-5 rounded-[2rem] border-2 transition-all cursor-pointer ${isSelected ? 'border-green-500 bg-green-50' : 'border-red-200 bg-red-50'}`}
-                                        >
-                                            {isSelected ? <CheckCircle2 className="text-green-600" size={28} /> : <AlertOctagon className="text-red-500" size={28} />}
-                                            <div className="flex-1">
-                                                <p className="text-sm font-black uppercase leading-tight">{item.product_name}</p>
-                                                <p className="text-xs font-bold text-slate-400 mt-1">₹{item.subtotal}</p>
-                                            </div>
-                                        </div>
-                                        {!isSelected && (
-                                            <div className="px-4">
-                                                <select
-                                                    onChange={(e) => setItemReasons({ ...itemReasons, [itemId]: e.target.value })}
-                                                    className="w-full p-5 bg-white border-2 border-red-100 rounded-[1.5rem] text-xs font-black uppercase outline-none focus:border-red-500"
-                                                >
-                                                    <option value="">Choose Return Reason</option>
-                                                    <option value="Damaged">Product Damaged</option>
-                                                    <option value="Wrong Item">Wrong Item Sent</option>
-                                                    <option value="Refused">Customer Refused</option>
-                                                </select>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+    const itemId = `item-${i}`;
+    const isSelected = selectedItemIds.includes(itemId);
+    return (
+        <div key={i} className="space-y-3">
+            <div
+                onClick={() => setSelectedItemIds(prev => isSelected ? prev.filter(id => id !== itemId) : [...prev, itemId])}
+                className={`flex items-center gap-5 p-5 rounded-[2rem] border-2 transition-all cursor-pointer ${isSelected ? 'border-green-500 bg-green-50' : 'border-red-200 bg-red-50'}`}
+            >
+                {/* 1. SELECTION ICON */}
+                {isSelected ? <CheckCircle2 className="text-green-600" size={28} /> : <AlertOctagon className="text-red-500" size={28} />}
+                
+                {/* 2. PRODUCT IMAGE (Added this block) */}
+                <div className="w-12 h-12 rounded-xl bg-white overflow-hidden flex-shrink-0 border border-slate-200">
+                    <img 
+                        src={item.image_url || '/placeholder-product.png'} 
+                        alt={item.product_name}
+                        className="w-full h-full object-cover"
+                    />
+                </div>
+
+                {/* 3. PRODUCT DETAILS */}
+                <div className="flex-1">
+                    <p className="text-sm font-black uppercase leading-tight">{item.product_name}</p>
+                    <p className="text-xs font-bold text-slate-400 mt-1">₹{item.subtotal}</p>
+                </div>
+            </div>
+            
+            {/* RETURN REASON SELECT */}
+            {!isSelected && (
+                <div className="px-4">
+                    <select
+                        onChange={(e) => setItemReasons({ ...itemReasons, [itemId]: e.target.value })}
+                        className="w-full p-5 bg-white border-2 border-red-100 rounded-[1.5rem] text-xs font-black uppercase outline-none focus:border-red-500"
+                    >
+                        <option value="">Choose Return Reason</option>
+                        <option value="Damaged">Product Damaged</option>
+                        <option value="Wrong Item">Wrong Item Sent</option>
+                        <option value="Refused">Customer Refused</option>
+                    </select>
+                </div>
+            )}
+        </div>
+    );
+})}
                         </div>
 
                         <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] mb-8 shadow-2xl">
@@ -510,6 +576,26 @@ export default function DeliveryDashboard() {
                             {updatingId ? <Loader2 className="animate-spin mx-auto" /> : "Confirm & Save Delivery"}
                         </button>
                     </div>
+                </div>
+            )}
+
+            {/* FULL SCREEN IMAGE PREVIEW */}
+            {previewImage && (
+                <div
+                    className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm"
+                    onClick={() => setPreviewImage(null)}
+                >
+                    <button
+                        className="absolute top-10 right-10 text-white bg-white/10 p-4 rounded-full"
+                        onClick={() => setPreviewImage(null)}
+                    >
+                        <X size={32} />
+                    </button>
+                    <img
+                        src={previewImage}
+                        className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl animate-in zoom-in-95 duration-300"
+                        alt="Full Preview"
+                    />
                 </div>
             )}
         </div>

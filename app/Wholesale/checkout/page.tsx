@@ -33,12 +33,12 @@ export default function CheckoutPage() {
     const [formData, setFormData] = useState({
         full_name: "", phone: "", street_address: "", city: "", state: "", pincode: ""
     });
-
+    const minPercent = 0.3; // 30% advance required
     // Payment Logic
     const [totalWithGst, setTotalWithGst] = useState(0);
     const [subtotal, setSubtotal] = useState(0);
     const [advanceAmount, setAdvanceAmount] = useState(0);
-    const [paymentMethod, setPaymentMethod] = useState<'bank' | 'upi'>('bank');
+    const [paymentMethod, setPaymentMethod] = useState<'bank' | 'upi' | 'cod'>('bank');
     const [transactionDetails, setTransactionDetails] = useState({
         transactionId: "",
         utrNumber: "",
@@ -46,7 +46,7 @@ export default function CheckoutPage() {
         photo: null as File | null
     });
     const [showPaymentProof, setShowPaymentProof] = useState(false);
-    const minPercent = 0.15;
+    const minRequired = Math.ceil(totalWithGst * minPercent);
 
     useEffect(() => {
         loadData();
@@ -138,7 +138,8 @@ export default function CheckoutPage() {
 
             setSubtotal(calcSubtotal);
             setTotalWithGst(grandTotal);
-            setAdvanceAmount(Math.ceil(grandTotal * minPercent));
+            const minAdvance = Math.ceil(grandTotal * minPercent);
+            setAdvanceAmount(minAdvance);
 
             // 5️⃣ LOAD EXTRA ADDRESSES
             const { data: addr } = await supabase
@@ -157,22 +158,27 @@ export default function CheckoutPage() {
 
     const handleAdvanceChange = (val: number) => {
         if (val > totalWithGst) {
-            setAdvanceAmount(Math.floor(totalWithGst));
-            toast.error("Cannot exceed total amount");
+            setAdvanceAmount(totalWithGst);
+        } else if (val < minRequired) {
+            setAdvanceAmount(val); // allow but mark warning
         } else {
             setAdvanceAmount(val);
         }
     };
 
-    const minRequired = Math.ceil(totalWithGst * minPercent);
-    const isAmountTooLow = advanceAmount < minRequired;
+    const isAmountTooLow = advanceAmount < minRequired; // no restriction
     const remainingBalance = totalWithGst - advanceAmount;
 
     const handlePaymentProofSubmit = async () => {
-
+        if (paymentMethod === "cod") {
+            // Skip validation for COD
+        }
         if (
-            (paymentMethod === "bank" && !transactionDetails.transactionId) ||
-            (paymentMethod === "upi" && !transactionDetails.utrNumber)
+            paymentMethod !== "cod" &&
+            (
+                (paymentMethod === "bank" && !transactionDetails.transactionId) ||
+                (paymentMethod === "upi" && !transactionDetails.utrNumber)
+            )
         ) {
             toast.error("Please enter transaction details");
             return;
@@ -231,9 +237,15 @@ export default function CheckoutPage() {
 
                 remaining_balance: parseFloat(remainingBalance.toFixed(2)),
 
-                payment_type: advanceAmount >= totalWithGst ? "full" : "partial",
+                payment_type:
+                    paymentMethod === "cod"
+                        ? "cod"
+                        : (advanceAmount >= totalWithGst ? "full" : "partial"),
 
-                payment_status: "pending_manual",
+                payment_status:
+                    paymentMethod === "cod"
+                        ? "cod_pending"
+                        : "pending_manual",
 
                 order_status: "processing",
 
@@ -286,36 +298,31 @@ export default function CheckoutPage() {
             }
 
             // Save Payment Record
-            const { error: paymentError } = await supabase
-                .from("payments")
-                .insert([
-                    {
-                        order_id: order.id,
+            if (paymentMethod !== "cod") {
+                const { error: paymentError } = await supabase
+                    .from("payments")
+                    .insert([
+                        {
+                            order_id: order.id,
+                            user_id: user.id,
+                            payment_method: paymentMethod,
+                            payment_amount: advanceAmount,
+                            bank_ref_number:
+                                paymentMethod === "bank"
+                                    ? transactionDetails.transactionId
+                                    : null,
+                            utr_number:
+                                paymentMethod === "upi"
+                                    ? transactionDetails.utrNumber
+                                    : null,
+                            payment_screenshot: screenshotUrl,
+                            payment_status: "pending"
+                        }
+                    ]);
 
-                        user_id: user.id,
-
-                        payment_method: paymentMethod,
-
-                        payment_amount: advanceAmount,
-
-                        bank_ref_number:
-                            paymentMethod === "bank"
-                                ? transactionDetails.transactionId
-                                : null,
-
-                        utr_number:
-                            paymentMethod === "upi"
-                                ? transactionDetails.utrNumber
-                                : null,
-
-                        payment_screenshot: screenshotUrl,
-
-                        payment_status: "pending"
-                    }
-                ]);
-
-            if (paymentError) {
-                console.error("Payment insert failed:", paymentError);
+                if (paymentError) {
+                    console.error("Payment insert failed:", paymentError);
+                }
             }
 
             // Clear Cart
@@ -327,7 +334,7 @@ export default function CheckoutPage() {
             window.dispatchEvent(new Event("cartUpdated"));
 
             toast.success(
-                "Order placed successfully! Payment proof submitted for verification."
+                "Order placed successfully! "
             );
 
             router.push("/Wholesale/orders");
@@ -596,11 +603,7 @@ export default function CheckoutPage() {
                                         className={`w-full bg-slate-50 border-2 rounded-[1.5rem] p-5 pl-10 text-2xl font-black outline-none transition-all ${isAmountTooLow ? 'border-red-200 text-red-600' : 'border-slate-100 text-slate-900 focus:border-red-600'}`}
                                     />
                                 </div>
-                                {isAmountTooLow && (
-                                    <p className="text-[9px] font-black text-red-600 flex items-center gap-1 uppercase tracking-tighter">
-                                        <AlertTriangle size={12} /> Minimum 15% is mandatory to reserve stock.
-                                    </p>
-                                )}
+
                             </div>
 
                             {/* Breakdown */}
@@ -681,18 +684,34 @@ export default function CheckoutPage() {
                                         </div>
 
                                         <div className="md:col-span-2 flex bg-slate-50 p-1.5 rounded-3xl border border-slate-100">
+
+                                            {/* BANK */}
                                             <button
                                                 onClick={() => setPaymentMethod('bank')}
-                                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-[11px] uppercase transition-all ${paymentMethod === 'bank' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                                                className={`flex-1 py-3 rounded-2xl font-black text-[11px] ${paymentMethod === 'bank' ? 'bg-white shadow-sm' : 'text-slate-400'
+                                                    }`}
                                             >
-                                                <Building2 size={16} /> Bank Transfer
+                                                Bank
                                             </button>
+
+                                            {/* UPI */}
                                             <button
                                                 onClick={() => setPaymentMethod('upi')}
-                                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-[11px] uppercase transition-all ${paymentMethod === 'upi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                                                className={`flex-1 py-3 rounded-2xl font-black text-[11px] ${paymentMethod === 'upi' ? 'bg-white shadow-sm' : 'text-slate-400'
+                                                    }`}
                                             >
-                                                <Smartphone size={16} /> UPI / QR
+                                                UPI
                                             </button>
+
+                                            {/* COD */}
+                                            <button
+                                                onClick={() => setPaymentMethod('cod')}
+                                                className={`flex-1 py-3 rounded-2xl font-black text-[11px] ${paymentMethod === 'cod' ? 'bg-white shadow-sm' : 'text-slate-400'
+                                                    }`}
+                                            >
+                                                COD
+                                            </button>
+
                                         </div>
                                     </div>
 
@@ -700,20 +719,26 @@ export default function CheckoutPage() {
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
 
                                         {/* Left: Credentials Display */}
+                                        {/* Left: Credentials Display */}
                                         <div className="space-y-6">
-                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] px-2">Payment Details</h4>
+                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] px-2">
+                                                Payment Details
+                                            </h4>
+
                                             {paymentMethod === 'bank' ? (
                                                 <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden">
-                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16" />
-                                                    <div className="space-y-6 relative z-10">
+                                                    <div className="space-y-6">
                                                         <div>
                                                             <p className="text-[10px] text-slate-400 uppercase font-bold">Account Name</p>
                                                             <p className="text-lg font-bold">{bankDetails.account_name}</p>
                                                         </div>
+
                                                         <div className="grid grid-cols-2 gap-4">
                                                             <div>
                                                                 <p className="text-[10px] text-slate-400 uppercase font-bold">Account Number</p>
-                                                                <p className="text-lg font-mono font-bold tracking-widest text-red-500">{bankDetails.account_number}</p>
+                                                                <p className="text-lg font-mono font-bold text-red-500">
+                                                                    {bankDetails.account_number}
+                                                                </p>
                                                             </div>
                                                             <div>
                                                                 <p className="text-[10px] text-slate-400 uppercase font-bold">IFSC</p>
@@ -722,75 +747,213 @@ export default function CheckoutPage() {
                                                         </div>
                                                     </div>
                                                 </div>
-                                            ) : (
+                                            ) : paymentMethod === 'upi' ? (
                                                 <div className="bg-white border-2 border-slate-900 rounded-[2rem] p-8 flex flex-col items-center">
                                                     <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 mb-4">
                                                         {bankDetails.qr_image ? (
-                                                            <Image src={bankDetails.qr_image} alt="QR" width={160} height={160} className="rounded-xl" />
+                                                            <Image
+                                                                src={bankDetails.qr_image}
+                                                                alt="QR"
+                                                                width={160}
+                                                                height={160}
+                                                                className="rounded-xl"
+                                                            />
                                                         ) : (
                                                             <QrCode size={120} className="text-slate-200" />
                                                         )}
                                                     </div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Scan or Pay to UPI ID</p>
-                                                    <p className="text-2xl font-black text-slate-900 select-all">{bankDetails.upi_id}</p>
+
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">
+                                                        Scan or Pay to UPI ID
+                                                    </p>
+                                                    <p className="text-2xl font-black text-slate-900">
+                                                        {bankDetails.upi_id}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                /* ✅ COD NOW COMES HERE (LEFT SIDE NEXT TO GRID) */
+                                                <div className="space-y-4">
+                                                    <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-2xl text-center">
+                                                        <p className="text-xs font-black text-yellow-700 uppercase">
+                                                            Cash on Delivery Selected
+                                                        </p>
+                                                        <p className="text-[10px] text-yellow-600 mt-2">
+                                                            No advance payment required. You will pay when order is delivered.
+                                                        </p>
+                                                    </div>
+
+                                                    <button
+                                                        onClick={handlePaymentProofSubmit}
+                                                        disabled={payLoading}
+                                                        className="w-full py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all bg-green-600 text-white shadow-xl hover:bg-green-700 hover:scale-[1.01] active:scale-95"
+                                                    >
+                                                        {payLoading ? (
+                                                            <Loader2 className="animate-spin" size={20} />
+                                                        ) : (
+                                                            "Place Order (Cash on Delivery)"
+                                                        )}
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>
 
                                         {/* Right: Verification Form */}
                                         <div className="space-y-6">
-                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] px-2">Verify Transaction</h4>
+                                            {paymentMethod !== 'cod' && (
+                                                <>
+                                                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] px-2">Verify Transaction</h4>
 
-                                            <div className="space-y-4">
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-                                                        {paymentMethod === 'bank' ? 'Bank Ref Number' : 'UPI UTR Number'}
+                                                    <div className="space-y-4">
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                                                                {paymentMethod === 'bank' ? 'Bank Ref Number' : 'UPI UTR Number'}
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Enter Transaction ID..."
+                                                                value={paymentMethod === 'bank' ? transactionDetails.transactionId : transactionDetails.utrNumber}
+                                                                onChange={(e) => setTransactionDetails(prev => ({
+                                                                    ...prev,
+                                                                    [paymentMethod === 'bank' ? 'transactionId' : 'utrNumber']: e.target.value
+                                                                }))}
+                                                                /* FIXED: text-slate-900 for visibility */
+                                                                className="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-2xl font-bold text-slate-900 placeholder:text-slate-300 focus:border-slate-900 focus:bg-white outline-none transition-all"
+                                                            />
+                                                        </div>
+
+                                                        <label className="relative group cursor-pointer block">
+                                                            <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                                                            <div className={`w-full py-10 border-2 border-dashed rounded-[2rem] transition-all flex flex-col items-center justify-center gap-3 ${transactionDetails.photo ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200 group-hover:bg-slate-100'}`}>
+                                                                {transactionDetails.photo ? (
+                                                                    <>
+                                                                        <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
+                                                                            <CheckCircle2 size={24} />
+                                                                        </div>
+                                                                        <p className="font-black text-green-600 uppercase text-[10px]">Receipt Uploaded Successfully</p>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Camera size={32} className="text-slate-300 group-hover:scale-110 transition-transform" />
+                                                                        <p className="font-black text-slate-400 uppercase text-[10px]">Click to upload payment proof</p>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </label>
+                                                    </div>
+
+                                                    {/* Final Action - ENABLED ONLY AFTER FILE UPLOAD */}
+                                                    <button
+                                                        onClick={handlePaymentProofSubmit}
+                                                        disabled={!transactionDetails.photo || payLoading}
+                                                        className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all ${!transactionDetails.photo || payLoading
+                                                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
+                                                            : 'bg-red-600 text-white shadow-xl shadow-red-600/30 hover:bg-red-700 hover:scale-[1.01] active:scale-95'
+                                                            }`}
+                                                    >
+                                                        {payLoading ? <Loader2 className="animate-spin" size={20} /> : <>
+                                                            {paymentMethod === "cod" ? (
+                                                                "Place Order (Cash on Delivery)"
+                                                            ) : (
+                                                                <>
+                                                                    <CreditCard size={20} /> Confirm Payment
+                                                                </>
+                                                            )}</>}
+                                                    </button>
+                                                </>
+                                            )}
+
+
+                                        </div>
+                                    </div>
+                                    <div className="space-y-6">
+
+                                        {paymentMethod !== 'cod' && (
+                                            <>
+                                                <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] px-2">
+                                                    Verify Transaction
+                                                </h4>
+
+                                                <div className="space-y-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                                                            {paymentMethod === 'bank' ? 'Bank Ref Number' : 'UPI UTR Number'}
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Enter Transaction ID..."
+                                                            value={paymentMethod === 'bank'
+                                                                ? transactionDetails.transactionId
+                                                                : transactionDetails.utrNumber}
+                                                            onChange={(e) =>
+                                                                setTransactionDetails(prev => ({
+                                                                    ...prev,
+                                                                    [paymentMethod === 'bank'
+                                                                        ? 'transactionId'
+                                                                        : 'utrNumber']: e.target.value
+                                                                }))
+                                                            }
+                                                            className="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-2xl font-bold text-slate-900 placeholder:text-slate-300 focus:border-slate-900 focus:bg-white outline-none transition-all"
+                                                        />
+                                                    </div>
+
+                                                    <label className="relative group cursor-pointer block">
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            onChange={handleFileUpload}
+                                                            className="hidden"
+                                                        />
+                                                        <div
+                                                            className={`w-full py-10 border-2 border-dashed rounded-[2rem] transition-all flex flex-col items-center justify-center gap-3 ${transactionDetails.photo
+                                                                ? 'bg-green-50 border-green-200'
+                                                                : 'bg-slate-50 border-slate-200 group-hover:bg-slate-100'
+                                                                }`}
+                                                        >
+                                                            {transactionDetails.photo ? (
+                                                                <>
+                                                                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
+                                                                        <CheckCircle2 size={24} />
+                                                                    </div>
+                                                                    <p className="font-black text-green-600 uppercase text-[10px]">
+                                                                        Receipt Uploaded Successfully
+                                                                    </p>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Camera
+                                                                        size={32}
+                                                                        className="text-slate-300 group-hover:scale-110 transition-transform"
+                                                                    />
+                                                                    <p className="font-black text-slate-400 uppercase text-[10px]">
+                                                                        Click to upload payment proof
+                                                                    </p>
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     </label>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Enter Transaction ID..."
-                                                        value={paymentMethod === 'bank' ? transactionDetails.transactionId : transactionDetails.utrNumber}
-                                                        onChange={(e) => setTransactionDetails(prev => ({
-                                                            ...prev,
-                                                            [paymentMethod === 'bank' ? 'transactionId' : 'utrNumber']: e.target.value
-                                                        }))}
-                                                        /* FIXED: text-slate-900 for visibility */
-                                                        className="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-2xl font-bold text-slate-900 placeholder:text-slate-300 focus:border-slate-900 focus:bg-white outline-none transition-all"
-                                                    />
                                                 </div>
 
-                                                <label className="relative group cursor-pointer block">
-                                                    <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-                                                    <div className={`w-full py-10 border-2 border-dashed rounded-[2rem] transition-all flex flex-col items-center justify-center gap-3 ${transactionDetails.photo ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200 group-hover:bg-slate-100'}`}>
-                                                        {transactionDetails.photo ? (
-                                                            <>
-                                                                <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
-                                                                    <CheckCircle2 size={24} />
-                                                                </div>
-                                                                <p className="font-black text-green-600 uppercase text-[10px]">Receipt Uploaded Successfully</p>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Camera size={32} className="text-slate-300 group-hover:scale-110 transition-transform" />
-                                                                <p className="font-black text-slate-400 uppercase text-[10px]">Click to upload payment proof</p>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </label>
-                                            </div>
+                                                {/* BANK / UPI BUTTON */}
+                                                <button
+                                                    onClick={handlePaymentProofSubmit}
+                                                    disabled={!transactionDetails.photo || payLoading}
+                                                    className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all ${!transactionDetails.photo || payLoading
+                                                        ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
+                                                        : 'bg-red-600 text-white shadow-xl shadow-red-600/30 hover:bg-red-700 hover:scale-[1.01] active:scale-95'
+                                                        }`}
+                                                >
+                                                    {payLoading ? (
+                                                        <Loader2 className="animate-spin" size={20} />
+                                                    ) : (
+                                                        <>
+                                                            <CreditCard size={20} /> Confirm Payment
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </>
+                                        )}
 
-                                            {/* Final Action - ENABLED ONLY AFTER FILE UPLOAD */}
-                                            <button
-                                                onClick={handlePaymentProofSubmit}
-                                                disabled={!transactionDetails.photo || payLoading}
-                                                className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all ${!transactionDetails.photo || payLoading
-                                                    ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
-                                                    : 'bg-red-600 text-white shadow-xl shadow-red-600/30 hover:bg-red-700 hover:scale-[1.01] active:scale-95'
-                                                    }`}
-                                            >
-                                                {payLoading ? <Loader2 className="animate-spin" size={20} /> : <><CreditCard size={20} /> Confirm Payment</>}
-                                            </button>
-                                        </div>
+
                                     </div>
                                 </div>
                             ) : (

@@ -842,23 +842,23 @@ export default function CheckoutPage() {
                                                     </div>
 
                                                     {/* Final Action - ENABLED ONLY AFTER FILE UPLOAD */}
-                                                    <button
-                                                        onClick={handlePaymentProofSubmit}
-                                                        disabled={!transactionDetails.photo || payLoading}
-                                                        className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all ${!transactionDetails.photo || payLoading
-                                                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
-                                                            : 'bg-red-600 text-white shadow-xl shadow-red-600/30 hover:bg-red-700 hover:scale-[1.01] active:scale-95'
-                                                            }`}
-                                                    >
-                                                        {payLoading ? <Loader2 className="animate-spin" size={20} /> : <>
-                                                            {paymentMethod === "cod" ? (
-                                                                "Place Order (Cash on Delivery)"
-                                                            ) : (
-                                                                <>
-                                                                    <CreditCard size={20} /> Confirm Payment
-                                                                </>
-                                                            )}</>}
-                                                    </button>
+                                                 <button
+    onClick={handlePaymentProofSubmit}
+    disabled={!transactionDetails.photo || payLoading}
+    className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all ${
+        !transactionDetails.photo || payLoading
+            ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
+            : 'bg-red-600 text-white shadow-xl shadow-red-600/30 hover:bg-red-700 hover:scale-[1.01] active:scale-95'
+    }`}
+>
+    {payLoading ? (
+        <Loader2 className="animate-spin" size={20} />
+    ) : (
+        <>
+            <CreditCard size={20} /> Confirm Payment
+        </>
+    )}
+</button>
                                                 </>
                                             )}
 

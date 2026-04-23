@@ -36,10 +36,9 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
    const validateMapsLink = (link: string) => {
     const lowerLink = link.toLowerCase().trim();
     return (
-        lowerLink.includes("goo.gl/maps") || 
-        lowerLink.includes("google.com/maps") ||
-        lowerLink.includes("googleusercontent.com/maps.google.com/10") ||
-        lowerLink.includes("googleusercontent.com/maps.google.com/13")
+        lowerLink.includes("maps.google") ||   // covers google.com/maps
+        lowerLink.includes("goo.gl") ||        // old short links
+        lowerLink.includes("maps.app.goo.gl")  // new short links (IMPORTANT)
     );
 };
 
@@ -129,6 +128,36 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
         }
     };
 
+    const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+        toast.error("Geolocation not supported");
+        return;
+    }
+
+    setLoading(true);
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const { latitude, longitude } = position.coords;
+
+            // Create Google Maps link
+            const mapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
+
+            setFormData((prev) => ({
+                ...prev,
+                mapLink: mapsLink
+            }));
+
+            toast.success("Location fetched successfully!");
+            setLoading(false);
+        },
+        (error) => {
+            toast.error("Failed to fetch location");
+            setLoading(false);
+        }
+    );
+};
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2">
             <Toaster position="top-center" reverseOrder={false} />
@@ -208,7 +237,25 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
                                             <div className="space-y-2 animate-in fade-in slide-in-from-right-2">
                                                 <textarea name="regAddress" onChange={handleChange} value={formData.regAddress} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-[10px] h-16 resize-none focus:border-slate-300 transition-all" placeholder="REGISTERED OFFICE ADDRESS *" />
                                                 <textarea name="shopAddress" onChange={handleChange} value={formData.shopAddress} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-[10px] h-16 resize-none focus:border-slate-300 transition-all" placeholder="SHOP / DELIVERY ADDRESS *" />
-                                                <Input name="mapLink" icon={<Globe size={16} />} type="text" placeholder="PASTE GOOGLE MAPS LINK HERE" onChange={handleChange} value={formData.mapLink} />
+                                                <div className="space-y-2">
+    <Input 
+        name="mapLink" 
+        icon={<Globe size={16} />} 
+        type="text" 
+        placeholder="PASTE GOOGLE MAPS LINK HERE" 
+        onChange={handleChange} 
+        value={formData.mapLink} 
+    />
+
+    <button
+        type="button"
+        onClick={handleUseMyLocation}
+        className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold text-[10px] uppercase flex items-center justify-center gap-2 hover:bg-emerald-700 transition"
+    >
+        {loading ? <Loader2 className="animate-spin" size={14} /> : <MapPin size={14} />}
+        Use My Current Location
+    </button>
+</div>
                                                 <div className="flex gap-2">
                                                     <button onClick={() => setStep(2)} className="p-4 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors"><ArrowLeft size={16}/></button>
                                                     <button onClick={handleRegister} disabled={loading} className="flex-1 py-4 bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] hover:bg-black transition-colors">

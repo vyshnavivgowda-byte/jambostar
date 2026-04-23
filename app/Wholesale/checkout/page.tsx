@@ -587,33 +587,7 @@ export default function CheckoutPage() {
 
                         {/* Interactive Payment Section */}
                         <div className="p-8 space-y-8">
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center">
-                                    <label className="text-[10px] font-black uppercase text-slate-400">Set Advance Payment</label>
-                                    <span className={`text-[9px] font-black px-2 py-1 rounded-full ${isAmountTooLow ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-                                        MIN: ₹{minRequired.toLocaleString()}
-                                    </span>
-                                </div>
-                                <div className="relative group">
-                                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-black text-lg">₹</div>
-                                    <input
-                                        type="number"
-                                        value={advanceAmount}
-                                        onChange={(e) => handleAdvanceChange(Number(e.target.value))}
-                                        className={`w-full bg-slate-50 border-2 rounded-[1.5rem] p-5 pl-10 text-2xl font-black outline-none transition-all ${isAmountTooLow ? 'border-red-200 text-red-600' : 'border-slate-100 text-slate-900 focus:border-red-600'}`}
-                                    />
-                                </div>
-
-                            </div>
-
-                            {/* Breakdown */}
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase">Remaining Due</span>
-                                    <span className="font-black text-slate-900 text-sm">₹{remainingBalance.toLocaleString()}</span>
-                                </div>
-                            </div>
-
+                         
                             {/* FIXED BUTTON - Always clickable, opens popup */}
                             <button
                                 onClick={() => {
@@ -633,17 +607,12 @@ export default function CheckoutPage() {
                                     <Loader2 className="animate-spin" size={18} />
                                 ) : (
                                     <>
-                                        <Wallet size={18} /> Pay Advance via Bank/UPI
+                                        <Wallet size={18} />Pay Now / Place Order
                                     </>
                                 )}
                             </button>
 
-                            <div className="flex gap-3 items-start bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-                                <Info className="text-blue-600 shrink-0" size={16} />
-                                <p className="text-[9px] font-bold text-blue-900 uppercase leading-relaxed tracking-tighter">
-                                    Balance ₹{remainingBalance.toLocaleString()} must be cleared within 10 days to initiate logistics dispatch.
-                                </p>
-                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -680,7 +649,7 @@ export default function CheckoutPage() {
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                                         <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
                                             <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">Total Amount</span>
-                                            <p className="text-3xl font-black text-slate-900">₹{advanceAmount.toLocaleString()}</p>
+                                            <p className="text-3xl font-black text-slate-900">₹{totalWithGst.toLocaleString()}</p>
                                         </div>
 
                                         <div className="md:col-span-2 flex bg-slate-50 p-1.5 rounded-3xl border border-slate-100">

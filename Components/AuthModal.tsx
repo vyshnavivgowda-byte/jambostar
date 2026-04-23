@@ -31,16 +31,16 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
     // --- VALIDATION LOGIC ---
     const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     const validatePhone = (phone: string) => /^[6-9]\d{9}$/.test(phone);
-    
+
     // UPDATED: Broad validation for all common Google Maps link types
-   const validateMapsLink = (link: string) => {
-    const lowerLink = link.toLowerCase().trim();
-    return (
-        lowerLink.includes("maps.google") ||   // covers google.com/maps
-        lowerLink.includes("goo.gl") ||        // old short links
-        lowerLink.includes("maps.app.goo.gl")  // new short links (IMPORTANT)
-    );
-};
+    const validateMapsLink = (link: string) => {
+        const lowerLink = link.toLowerCase().trim();
+        return (
+            lowerLink.includes("maps.google") ||   // covers google.com/maps
+            lowerLink.includes("goo.gl") ||        // old short links
+            lowerLink.includes("maps.app.goo.gl")  // new short links (IMPORTANT)
+        );
+    };
 
     const checkStep1 = () => {
         if (!validateEmail(formData.email)) { toast.error("Please enter a valid email"); return false; }
@@ -58,7 +58,7 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
     const checkStep3 = () => {
         if (!formData.regAddress.trim()) { toast.error("Registered Office Address is required"); return false; }
         if (!formData.shopAddress.trim()) { toast.error("Shop/Delivery Address is required"); return false; }
-        
+
         // Final check for the Maps Link
         if (!formData.mapLink.trim()) {
             toast.error("Please provide a Google Maps link");
@@ -105,7 +105,7 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
         if (!checkStep3()) return;
         setLoading(true);
         try {
-            const { data, error } = await supabase.from("wholesale_users").insert([{ 
+            const { data, error } = await supabase.from("wholesale_users").insert([{
                 email: formData.email.toLowerCase(),
                 phone: formData.phone,
                 company_name: formData.companyName,
@@ -115,7 +115,7 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
                 registered_address: formData.regAddress,
                 shop_address: formData.shopAddress,
                 google_maps_link: formData.mapLink,
-                status: "pending" 
+                status: "pending"
             }]).select("business_id").single();
 
             if (error) throw error;
@@ -129,34 +129,34 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
     };
 
     const handleUseMyLocation = () => {
-    if (!navigator.geolocation) {
-        toast.error("Geolocation not supported");
-        return;
-    }
-
-    setLoading(true);
-
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            const { latitude, longitude } = position.coords;
-
-            // Create Google Maps link
-            const mapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
-
-            setFormData((prev) => ({
-                ...prev,
-                mapLink: mapsLink
-            }));
-
-            toast.success("Location fetched successfully!");
-            setLoading(false);
-        },
-        (error) => {
-            toast.error("Failed to fetch location");
-            setLoading(false);
+        if (!navigator.geolocation) {
+            toast.error("Geolocation not supported");
+            return;
         }
-    );
-};
+
+        setLoading(true);
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+
+                // Create Google Maps link
+                const mapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
+
+                setFormData((prev) => ({
+                    ...prev,
+                    mapLink: mapsLink
+                }));
+
+                toast.success("Location fetched successfully!");
+                setLoading(false);
+            },
+            (error) => {
+                toast.error("Failed to fetch location");
+                setLoading(false);
+            }
+        );
+    };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2">
@@ -164,7 +164,7 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
 
             <div className="relative bg-white w-full max-w-4xl flex rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                
+
                 {/* LEFT: BRAND SECTION */}
                 <div className="hidden lg:flex w-[35%] relative bg-slate-900">
                     <img src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=600" alt="Grocery" className="absolute inset-0 w-full h-full object-cover opacity-50" />
@@ -227,7 +227,7 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
                                                     <Input name="ownerDob" icon={<User size={16} />} type="date" placeholder="DOB" onChange={handleChange} value={formData.ownerDob} />
                                                 </div>
                                                 <div className="flex gap-2">
-                                                    <button onClick={() => setStep(1)} className="p-4 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors"><ArrowLeft size={16}/></button>
+                                                    <button onClick={() => setStep(1)} className="p-4 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors"><ArrowLeft size={16} /></button>
                                                     <button onClick={() => checkStep2() && setStep(3)} className="flex-1 py-4 bg-red-600 text-white rounded-xl font-black uppercase text-[10px] shadow-lg shadow-red-200">Next: Location Details</button>
                                                 </div>
                                             </div>
@@ -238,26 +238,26 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
                                                 <textarea name="regAddress" onChange={handleChange} value={formData.regAddress} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-[10px] h-16 resize-none focus:border-slate-300 transition-all" placeholder="REGISTERED OFFICE ADDRESS *" />
                                                 <textarea name="shopAddress" onChange={handleChange} value={formData.shopAddress} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-[10px] h-16 resize-none focus:border-slate-300 transition-all" placeholder="SHOP / DELIVERY ADDRESS *" />
                                                 <div className="space-y-2">
-    <Input 
-        name="mapLink" 
-        icon={<Globe size={16} />} 
-        type="text" 
-        placeholder="PASTE GOOGLE MAPS LINK HERE" 
-        onChange={handleChange} 
-        value={formData.mapLink} 
-    />
+                                                    <Input
+                                                        name="mapLink"
+                                                        icon={<Globe size={16} />}
+                                                        type="text"
+                                                        placeholder="PASTE GOOGLE MAPS LINK HERE"
+                                                        onChange={handleChange}
+                                                        value={formData.mapLink}
+                                                    />
 
-    <button
-        type="button"
-        onClick={handleUseMyLocation}
-        className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold text-[10px] uppercase flex items-center justify-center gap-2 hover:bg-emerald-700 transition"
-    >
-        {loading ? <Loader2 className="animate-spin" size={14} /> : <MapPin size={14} />}
-        Use My Current Location
-    </button>
-</div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleUseMyLocation}
+                                                        className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold text-[10px] uppercase flex items-center justify-center gap-2 hover:bg-emerald-700 transition"
+                                                    >
+                                                        {loading ? <Loader2 className="animate-spin" size={14} /> : <MapPin size={14} />}
+                                                        Use My Current Location
+                                                    </button>
+                                                </div>
                                                 <div className="flex gap-2">
-                                                    <button onClick={() => setStep(2)} className="p-4 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors"><ArrowLeft size={16}/></button>
+                                                    <button onClick={() => setStep(2)} className="p-4 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors"><ArrowLeft size={16} /></button>
                                                     <button onClick={handleRegister} disabled={loading} className="flex-1 py-4 bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] hover:bg-black transition-colors">
                                                         {loading ? <Loader2 className="animate-spin mx-auto" size={16} /> : "Submit Application"}
                                                     </button>

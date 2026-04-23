@@ -72,7 +72,7 @@ export default function Footer() {
                 </Link>
               </li>
 
-         
+
               <li>
                 <Link href="/contact" className="hover:text-red-500 transition">
                   Contact Us
@@ -107,47 +107,38 @@ export default function Footer() {
 
 
           {/* Address */}
+          {/* Address */}
           <div className="lg:col-span-3 space-y-4">
-
             <h4 className="text-white text-xs font-semibold uppercase tracking-wider">
               Address
             </h4>
 
             <div className="flex gap-3 text-sm text-slate-500">
-
               <MapPin size={16} className="text-red-600 mt-1" />
-
               <span>
                 <b>JUMBOSTAR ENTERPRISES</b><br />
                 No.60/2 A Madanayakanahalli<br />
                 Opp. Miami Supermarket<br />
                 Bangalore - 562162
               </span>
-
             </div>
 
-
-            <div className="flex gap-3 text-sm text-slate-500">
-
-              <Phone size={16} className="text-red-600" />
-
-              <span>
-                K. Sathyababu – 9148794079
-              </span>
-
+            <div className="flex flex-col gap-3 text-sm text-slate-500">
+              <div className="flex gap-3">
+                <Phone size={16} className="text-red-600" />
+                <div className="flex flex-col gap-1">
+                  <span>K. Sathyababu – 9148794079</span>
+                  <span>Ramesh – 8073082709</span> {/* Added Ramesh here */}
+                </div>
+              </div>
             </div>
 
-
             <div className="flex gap-3 text-sm text-slate-500">
-
               <Mail size={16} className="text-red-600" />
-
               <span>
                 jumbostarenterprises@gmail.com
               </span>
-
             </div>
-
           </div>
 
         </div>

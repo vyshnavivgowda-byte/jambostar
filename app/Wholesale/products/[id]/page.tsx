@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
+import { Toaster } from "react-hot-toast";
 import { supabase } from "@/lib/supabaseClient";
 import {
     Star, ArrowLeft, ArrowRight,
@@ -15,7 +16,9 @@ import toast from "react-hot-toast";
 const getUserId = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user?.id) return session.user.id;
-    const userStr = localStorage.getItem("wholesale_user");
+
+    // Check local storage as a fallback for guest/existing users
+    const userStr = typeof window !== "undefined" ? localStorage.getItem("wholesale_user") : null;
     return userStr ? JSON.parse(userStr).id : null;
 };
 
@@ -80,22 +83,93 @@ export default function ProductPage() {
         fetchFullData();
     }, [id]);
 
-    const toggleWishlist = async () => {
-        const userId = await getUserId();
-        if (!userId) { toast.error("Please login first"); return; }
-        if (isInWishlist) {
-            const { error } = await supabase.from("wishlist").delete().eq("user_id", userId).eq("product_id", id);
-            if (!error) { setIsInWishlist(false); toast.success("Removed from wishlist"); }
-        } else {
-            const { error } = await supabase.from("wishlist").insert([{ user_id: userId, product_id: id }]);
-            if (!error) { setIsInWishlist(true); toast.success("Added to wishlist", { icon: '❤️' }); }
-        }
-    };
+ const toggleWishlist = async () => {
+    const userId = await getUserId();
+    
+    if (!userId) { 
+        toast.error("Please login to save favorites", {
+            icon: '🔒',
+            style: {
+                borderRadius: '10px',
+                background: '#333',
+                color: '#fff',
+                fontSize: '12px',
+                fontWeight: 'bold'
+            },
+        }); 
+        return; 
+    }
 
+    if (isInWishlist) {
+        const { error } = await supabase
+            .from("wishlist")
+            .delete()
+            .eq("user_id", userId)
+            .eq("product_id", id);
+
+        if (!error) { 
+            setIsInWishlist(false); 
+            toast("Removed from wishlist", {
+                icon: '🗑️',
+                style: {
+                    borderRadius: '10px',
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                },
+            }); 
+        }
+    } else {
+        const { error } = await supabase
+            .from("wishlist")
+            .insert([{ user_id: userId, product_id: id }]);
+
+        if (!error) { 
+            setIsInWishlist(true); 
+            toast.success("Saved to favorites!", { 
+                icon: '❤️',
+                style: {
+                    borderRadius: '10px',
+                    background: '#333',
+                    color: '#fff',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                },
+            }); 
+        } else {
+            toast.error("Could not update wishlist");
+        }
+    }
+};
     const handleActionClick = async (mode: "cart" | "buy") => {
         const userId = await getUserId();
-        if (!userId) { toast.error("Please login to source products", { icon: '🔒' }); return; }
-        if (isInCart && mode === "cart") { router.push("/Wholesale/cart"); return; }
+
+        // If no user is found, show the toast and STOP
+        if (!userId) {
+            toast.error("Please login to source products", {
+                icon: '🔒',
+                style: {
+                    borderRadius: '10px',
+                    background: '#333',
+                    color: '#fff',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                },
+                duration: 3000
+            });
+
+            // Optional: Redirect them to login after a short delay
+            // setTimeout(() => router.push("/login"), 2000);
+            return;
+        }
+
+        // Existing logic for logged-in users
+        if (isInCart && mode === "cart") {
+            router.push("/Wholesale/cart");
+            return;
+        }
+
         setModalMode(mode);
         setQuantity(currentVariant.min_quantity);
         setShowMoqModal(true);
@@ -109,12 +183,12 @@ export default function ProductPage() {
                 { user_id: userId, variant_id: currentVariant.id, quantity: quantity }
             ]);
             if (error) {
-                if (error.code === '23505') { toast.error("Item already in cart."); } 
+                if (error.code === '23505') { toast.error("Item already in cart."); }
                 else throw error;
             };
             setIsInCart(true);
             setShowMoqModal(false);
-            if (modalMode === "buy") { router.push("/Wholesale/cart"); } 
+            if (modalMode === "buy") { router.push("/Wholesale/cart"); }
             else { toast.success(`Added ${quantity} units to cart!`); }
         } catch (err: any) {
             toast.error("Could not update cart");
@@ -149,6 +223,7 @@ export default function ProductPage() {
 
     return (
         <div className="min-h-screen bg-[#F8FAFC]">
+            <Toaster position="top-center" reverseOrder={false} />
             <style jsx global>{`
                 @keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(calc(-250px * 5)); } }
                 .auto-scroll-container { display: flex; width: calc(250px * 20); animation: scroll 40s linear infinite; }

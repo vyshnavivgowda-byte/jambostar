@@ -33,12 +33,19 @@ export default function CheckoutPage() {
     const [formData, setFormData] = useState({
         full_name: "", phone: "", street_address: "", city: "", state: "", pincode: ""
     });
-    const minPercent = 0.3; // 30% advance required
+const [paymentType, setPaymentType] = useState<'full' | 'cod'>('full');
     // Payment Logic
     const [totalWithGst, setTotalWithGst] = useState(0);
     const [subtotal, setSubtotal] = useState(0);
-    const [advanceAmount, setAdvanceAmount] = useState(0);
     const [paymentMethod, setPaymentMethod] = useState<'bank' | 'upi' | 'cod'>('bank');
+    useEffect(() => {
+        if (paymentMethod === "cod") {
+            setPaymentType("cod");
+        } else {
+            setPaymentType("full");
+        }
+    }, [paymentMethod]);
+
     const [transactionDetails, setTransactionDetails] = useState({
         transactionId: "",
         utrNumber: "",
@@ -46,7 +53,9 @@ export default function CheckoutPage() {
         photo: null as File | null
     });
     const [showPaymentProof, setShowPaymentProof] = useState(false);
-    const minRequired = Math.ceil(totalWithGst * minPercent);
+    const payableNow = paymentType === "full" ? totalWithGst : 0;
+const remainingBalance = paymentType === "cod" ? totalWithGst : 0;
+const isAmountTooLow = totalWithGst < 500; // you can change 500 to your minimum amount
 
     useEffect(() => {
         loadData();
@@ -138,9 +147,7 @@ export default function CheckoutPage() {
 
             setSubtotal(calcSubtotal);
             setTotalWithGst(grandTotal);
-            const minAdvance = Math.ceil(grandTotal * minPercent);
-            setAdvanceAmount(minAdvance);
-
+          
             // 5️⃣ LOAD EXTRA ADDRESSES
             const { data: addr } = await supabase
                 .from("addresses")
@@ -156,18 +163,7 @@ export default function CheckoutPage() {
         }
     };
 
-    const handleAdvanceChange = (val: number) => {
-        if (val > totalWithGst) {
-            setAdvanceAmount(totalWithGst);
-        } else if (val < minRequired) {
-            setAdvanceAmount(val); // allow but mark warning
-        } else {
-            setAdvanceAmount(val);
-        }
-    };
 
-    const isAmountTooLow = advanceAmount < minRequired; // no restriction
-    const remainingBalance = totalWithGst - advanceAmount;
 
     const handlePaymentProofSubmit = async () => {
         if (paymentMethod === "cod") {
@@ -233,19 +229,15 @@ export default function CheckoutPage() {
 
                 total_payable_amount: parseFloat(totalWithGst.toFixed(2)),
 
-                amount_paid_now: parseFloat(advanceAmount.toFixed(2)),
-
+                amount_paid_now: parseFloat(payableNow.toFixed(2)),
                 remaining_balance: parseFloat(remainingBalance.toFixed(2)),
 
-                payment_type:
-                    paymentMethod === "cod"
-                        ? "cod"
-                        : (advanceAmount >= totalWithGst ? "full" : "partial"),
+                payment_type: paymentType,
 
                 payment_status:
-                    paymentMethod === "cod"
+                    paymentType === "cod"
                         ? "cod_pending"
-                        : "pending_manual",
+                        : "paid",
 
                 order_status: "processing",
 
@@ -306,7 +298,7 @@ export default function CheckoutPage() {
                             order_id: order.id,
                             user_id: user.id,
                             payment_method: paymentMethod,
-                            payment_amount: advanceAmount,
+                            payment_amount: payableNow,
                             bank_ref_number:
                                 paymentMethod === "bank"
                                     ? transactionDetails.transactionId
@@ -587,7 +579,7 @@ export default function CheckoutPage() {
 
                         {/* Interactive Payment Section */}
                         <div className="p-8 space-y-8">
-                         
+
                             {/* FIXED BUTTON - Always clickable, opens popup */}
                             <button
                                 onClick={() => {
@@ -811,119 +803,29 @@ export default function CheckoutPage() {
                                                     </div>
 
                                                     {/* Final Action - ENABLED ONLY AFTER FILE UPLOAD */}
-                                                 <button
-    onClick={handlePaymentProofSubmit}
-    disabled={!transactionDetails.photo || payLoading}
-    className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all ${
-        !transactionDetails.photo || payLoading
-            ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
-            : 'bg-red-600 text-white shadow-xl shadow-red-600/30 hover:bg-red-700 hover:scale-[1.01] active:scale-95'
-    }`}
->
-    {payLoading ? (
-        <Loader2 className="animate-spin" size={20} />
-    ) : (
-        <>
-            <CreditCard size={20} /> Confirm Payment
-        </>
-    )}
-</button>
+                                                    <button
+                                                        onClick={handlePaymentProofSubmit}
+                                                        disabled={!transactionDetails.photo || payLoading}
+                                                        className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all ${!transactionDetails.photo || payLoading
+                                                                ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
+                                                                : 'bg-red-600 text-white shadow-xl shadow-red-600/30 hover:bg-red-700 hover:scale-[1.01] active:scale-95'
+                                                            }`}
+                                                    >
+                                                        {payLoading ? (
+                                                            <Loader2 className="animate-spin" size={20} />
+                                                        ) : (
+                                                            <>
+                                                                <CreditCard size={20} /> Confirm Payment
+                                                            </>
+                                                        )}
+                                                    </button>
                                                 </>
                                             )}
 
 
                                         </div>
                                     </div>
-                                    <div className="space-y-6">
 
-                                        {paymentMethod !== 'cod' && (
-                                            <>
-                                                <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] px-2">
-                                                    Verify Transaction
-                                                </h4>
-
-                                                <div className="space-y-4">
-                                                    <div className="space-y-2">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-                                                            {paymentMethod === 'bank' ? 'Bank Ref Number' : 'UPI UTR Number'}
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Enter Transaction ID..."
-                                                            value={paymentMethod === 'bank'
-                                                                ? transactionDetails.transactionId
-                                                                : transactionDetails.utrNumber}
-                                                            onChange={(e) =>
-                                                                setTransactionDetails(prev => ({
-                                                                    ...prev,
-                                                                    [paymentMethod === 'bank'
-                                                                        ? 'transactionId'
-                                                                        : 'utrNumber']: e.target.value
-                                                                }))
-                                                            }
-                                                            className="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-2xl font-bold text-slate-900 placeholder:text-slate-300 focus:border-slate-900 focus:bg-white outline-none transition-all"
-                                                        />
-                                                    </div>
-
-                                                    <label className="relative group cursor-pointer block">
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            onChange={handleFileUpload}
-                                                            className="hidden"
-                                                        />
-                                                        <div
-                                                            className={`w-full py-10 border-2 border-dashed rounded-[2rem] transition-all flex flex-col items-center justify-center gap-3 ${transactionDetails.photo
-                                                                ? 'bg-green-50 border-green-200'
-                                                                : 'bg-slate-50 border-slate-200 group-hover:bg-slate-100'
-                                                                }`}
-                                                        >
-                                                            {transactionDetails.photo ? (
-                                                                <>
-                                                                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
-                                                                        <CheckCircle2 size={24} />
-                                                                    </div>
-                                                                    <p className="font-black text-green-600 uppercase text-[10px]">
-                                                                        Receipt Uploaded Successfully
-                                                                    </p>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Camera
-                                                                        size={32}
-                                                                        className="text-slate-300 group-hover:scale-110 transition-transform"
-                                                                    />
-                                                                    <p className="font-black text-slate-400 uppercase text-[10px]">
-                                                                        Click to upload payment proof
-                                                                    </p>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </label>
-                                                </div>
-
-                                                {/* BANK / UPI BUTTON */}
-                                                <button
-                                                    onClick={handlePaymentProofSubmit}
-                                                    disabled={!transactionDetails.photo || payLoading}
-                                                    className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all ${!transactionDetails.photo || payLoading
-                                                        ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
-                                                        : 'bg-red-600 text-white shadow-xl shadow-red-600/30 hover:bg-red-700 hover:scale-[1.01] active:scale-95'
-                                                        }`}
-                                                >
-                                                    {payLoading ? (
-                                                        <Loader2 className="animate-spin" size={20} />
-                                                    ) : (
-                                                        <>
-                                                            <CreditCard size={20} /> Confirm Payment
-                                                        </>
-                                                    )}
-                                                </button>
-                                            </>
-                                        )}
-
-
-                                    </div>
                                 </div>
                             ) : (
                                 <div className="p-20 text-center">

@@ -9,40 +9,34 @@ export default function BackButtonHandler() {
   useEffect(() => {
     let backListener: any = null;
 
-    const setup = async () => {
-      // 1. Double check environment
+    const setupListener = async () => {
+      // Only run in the actual APK
       if (typeof window === "undefined" || !(window as any).Capacitor) return;
 
       try {
-        // @ts-ignore
         const { App } = await import("@capacitor/app");
-
-        // Clear any stuck listeners
+        
+        // Remove old listeners to prevent the "Closing" bug
         await App.removeAllListeners();
 
-        backListener = await App.addListener("backButton", () => {
-          /**
-           * HISTORY LOGIC: 
-           * window.history.length > 1 means there are pages to go back to.
-           * !pathname.includes("/home") ensures we don't try to go back from the landing page.
-           */
-          const canGoBackInApp = window.history.length > 1;
-          const isAtHome = pathname === "/" || pathname.includes("/home") || pathname.includes("/Wholesale/home");
+        backListener = await App.addListener("backButton", (data: any) => {
+          // Identify your 'Home' or 'Login' page
+          const isAtRoot = pathname === "/login" || pathname === "/" || pathname.includes("/home");
 
-          if (isAtHome || !canGoBackInApp) {
-            // Exit if at home or no history
+          if (isAtRoot || !data.canGoBack) {
+            // If we are on the login/home screen, close the app
             App.exitApp();
           } else {
-            // Go back in history
+            // If we are deep in the site, just go back one page
             window.history.back();
           }
         });
-      } catch (err) {
-        console.error("Back handler error:", err);
+      } catch (e) {
+        console.warn("Capacitor App plugin not found");
       }
     };
 
-    setup();
+    setupListener();
 
     return () => {
       if (backListener) backListener.remove();

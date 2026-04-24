@@ -83,52 +83,12 @@ export default function ProductPage() {
         fetchFullData();
     }, [id]);
 
- const toggleWishlist = async () => {
-    const userId = await getUserId();
-    
-    if (!userId) { 
-        toast.error("Please login to save favorites", {
-            icon: '🔒',
-            style: {
-                borderRadius: '10px',
-                background: '#333',
-                color: '#fff',
-                fontSize: '12px',
-                fontWeight: 'bold'
-            },
-        }); 
-        return; 
-    }
+    const toggleWishlist = async () => {
+        const userId = await getUserId();
 
-    if (isInWishlist) {
-        const { error } = await supabase
-            .from("wishlist")
-            .delete()
-            .eq("user_id", userId)
-            .eq("product_id", id);
-
-        if (!error) { 
-            setIsInWishlist(false); 
-            toast("Removed from wishlist", {
-                icon: '🗑️',
-                style: {
-                    borderRadius: '10px',
-                    background: '#f1f5f9',
-                    color: '#475569',
-                    fontSize: '12px',
-                    fontWeight: 'bold'
-                },
-            }); 
-        }
-    } else {
-        const { error } = await supabase
-            .from("wishlist")
-            .insert([{ user_id: userId, product_id: id }]);
-
-        if (!error) { 
-            setIsInWishlist(true); 
-            toast.success("Saved to favorites!", { 
-                icon: '❤️',
+        if (!userId) {
+            toast.error("Please login to save favorites", {
+                icon: '🔒',
                 style: {
                     borderRadius: '10px',
                     background: '#333',
@@ -136,12 +96,52 @@ export default function ProductPage() {
                     fontSize: '12px',
                     fontWeight: 'bold'
                 },
-            }); 
-        } else {
-            toast.error("Could not update wishlist");
+            });
+            return;
         }
-    }
-};
+
+        if (isInWishlist) {
+            const { error } = await supabase
+                .from("wishlist")
+                .delete()
+                .eq("user_id", userId)
+                .eq("product_id", id);
+
+            if (!error) {
+                setIsInWishlist(false);
+                toast("Removed from wishlist", {
+                    icon: '🗑️',
+                    style: {
+                        borderRadius: '10px',
+                        background: '#f1f5f9',
+                        color: '#475569',
+                        fontSize: '12px',
+                        fontWeight: 'bold'
+                    },
+                });
+            }
+        } else {
+            const { error } = await supabase
+                .from("wishlist")
+                .insert([{ user_id: userId, product_id: id }]);
+
+            if (!error) {
+                setIsInWishlist(true);
+                toast.success("Saved to favorites!", {
+                    icon: '❤️',
+                    style: {
+                        borderRadius: '10px',
+                        background: '#333',
+                        color: '#fff',
+                        fontSize: '12px',
+                        fontWeight: 'bold'
+                    },
+                });
+            } else {
+                toast.error("Could not update wishlist");
+            }
+        }
+    };
     const handleActionClick = async (mode: "cart" | "buy") => {
         const userId = await getUserId();
 

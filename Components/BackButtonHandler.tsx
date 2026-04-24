@@ -1,38 +1,45 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 
 export default function BackButtonHandler() {
+  const router = useRouter();
+  const pathname = usePathname();
+
   useEffect(() => {
-    let appPlugin: any = null;
+    let listener: any = null;
 
-    const setupListener = async () => {
+    const setup = async () => {
       try {
-        // 1. Dynamic import: This hides the module from the server-side bundler
+        // @ts-ignore
         const { App } = await import("@capacitor/app");
-        appPlugin = App;
 
-        await App.addListener("backButton", ({ canGoBack }) => {
-          if (canGoBack) {
-            window.history.back();
-          } else {
+        // Remove any existing listeners to prevent duplicates
+        await App.removeAllListeners();
+
+        listener = await App.addListener("backButton", (data: any) => {
+          // Logic: If we are at the root/home page, exit the app
+          // Otherwise, go back in history
+          if (pathname === "/" || pathname === "/home" || !data.canGoBack) {
             App.exitApp();
+          } else {
+            window.history.back();
           }
         });
-      } catch (e) {
-        console.log("Capacitor App plugin not available in this environment.");
+      } catch (error) {
+        console.warn("Capacitor App plugin not found:", error);
       }
     };
 
-    setupListener();
+    setup();
 
     return () => {
-      // 2. Safely remove listeners if the plugin was loaded
-      if (appPlugin) {
-        appPlugin.removeAllListeners();
+      if (listener) {
+        listener.remove();
       }
     };
-  }, []);
+  }, [pathname]); // Re-run when path changes to ensure 'pathname' logic stays fresh
 
   return null;
 }

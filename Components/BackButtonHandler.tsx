@@ -1,45 +1,55 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 export default function BackButtonHandler() {
-  const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    let listener: any = null;
+    let backListener: any = null;
 
-    const setup = async () => {
+    const setupListener = async () => {
       try {
         // @ts-ignore
         const { App } = await import("@capacitor/app");
 
-        // Remove any existing listeners to prevent duplicates
-        await App.removeAllListeners();
+        // Remove existing to avoid multiple triggers
+        if (backListener) {
+          await backListener.remove();
+        }
 
-        listener = await App.addListener("backButton", (data: any) => {
-          // Logic: If we are at the root/home page, exit the app
-          // Otherwise, go back in history
-          if (pathname === "/" || pathname === "/home" || !data.canGoBack) {
+        backListener = await App.addListener("backButton", (data: { canGoBack: boolean }) => {
+          console.log("Back button pressed. Path:", pathname, "Can Go Back:", data.canGoBack);
+
+          /**
+           * CRITICAL: Define your exit routes here.
+           * If the user is on one of these paths, the app will CLOSE.
+           */
+          const isAppRoot = pathname === "/" || pathname === "/home" || pathname === "/Wholesale/productgallery";
+
+          if (isAppRoot || !data.canGoBack) {
+            // No more history or on a root page -> CLOSE APP
             App.exitApp();
           } else {
+            // Has history -> GO BACK
             window.history.back();
           }
         });
-      } catch (error) {
-        console.warn("Capacitor App plugin not found:", error);
+      } catch (e) {
+        console.warn("Capacitor App plugin not available.");
       }
     };
 
-    setup();
+    setupListener();
 
+    // Cleanup on unmount
     return () => {
-      if (listener) {
-        listener.remove();
+      if (backListener) {
+        backListener.remove();
       }
     };
-  }, [pathname]); // Re-run when path changes to ensure 'pathname' logic stays fresh
+  }, [pathname]); // Updates whenever you change pages
 
   return null;
 }

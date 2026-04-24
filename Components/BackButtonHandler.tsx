@@ -7,49 +7,45 @@ export default function BackButtonHandler() {
   const pathname = usePathname();
 
   useEffect(() => {
+    // Variable to hold the listener cleanup function
     let backListener: any = null;
 
-    const setupListener = async () => {
+    const initialize = async () => {
+      // 1. Check if we are actually in the APK (Native environment)
+      if (typeof window === "undefined" || !(window as any).Capacitor) return;
+
       try {
-        // @ts-ignore
+        // Use a standard import inside the effect
         const { App } = await import("@capacitor/app");
 
-        // Remove existing to avoid multiple triggers
-        if (backListener) {
-          await backListener.remove();
-        }
+        // 2. Clear any old listeners to prevent "Ghost" clicks
+        await App.removeAllListeners();
 
+        // 3. Set the new hardware listener
         backListener = await App.addListener("backButton", (data: { canGoBack: boolean }) => {
-          console.log("Back button pressed. Path:", pathname, "Can Go Back:", data.canGoBack);
+          
+          // Define the exact pages where back button should CLOSE the app
+          const isAtRoot = pathname === "/" || pathname === "/home" || pathname === "/Wholesale/productgallery";
 
-          /**
-           * CRITICAL: Define your exit routes here.
-           * If the user is on one of these paths, the app will CLOSE.
-           */
-          const isAppRoot = pathname === "/" || pathname === "/home" || pathname === "/Wholesale/productgallery";
-
-          if (isAppRoot || !data.canGoBack) {
-            // No more history or on a root page -> CLOSE APP
+          if (isAtRoot || !data.canGoBack) {
+            // This forces the Android Activity to finish
             App.exitApp();
           } else {
-            // Has history -> GO BACK
+            // Otherwise, navigate back in the Next.js stack
             window.history.back();
           }
         });
-      } catch (e) {
-        console.warn("Capacitor App plugin not available.");
+      } catch (err) {
+        console.error("Capacitor Bridge Error:", err);
       }
     };
 
-    setupListener();
+    initialize();
 
-    // Cleanup on unmount
     return () => {
-      if (backListener) {
-        backListener.remove();
-      }
+      if (backListener) backListener.remove();
     };
-  }, [pathname]); // Updates whenever you change pages
+  }, [pathname]); // Vital: Re-binds the logic when the route changes
 
   return null;
 }

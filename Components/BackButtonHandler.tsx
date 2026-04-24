@@ -1,51 +1,50 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export default function BackButtonHandler() {
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
-    // Variable to hold the listener cleanup function
     let backListener: any = null;
 
-    const initialize = async () => {
-      // 1. Check if we are actually in the APK (Native environment)
-      if (typeof window === "undefined" || !(window as any).Capacitor) return;
+    const setup = async () => {
+      if (typeof window === "undefined") return;
 
       try {
-        // Use a standard import inside the effect
+        // @ts-ignore
         const { App } = await import("@capacitor/app");
 
-        // 2. Clear any old listeners to prevent "Ghost" clicks
+        // fresh start
         await App.removeAllListeners();
 
-        // 3. Set the new hardware listener
-        backListener = await App.addListener("backButton", (data: { canGoBack: boolean }) => {
-          
-          // Define the exact pages where back button should CLOSE the app
-          const isAtRoot = pathname === "/" || pathname === "/home" || pathname === "/Wholesale/productgallery";
+        backListener = await App.addListener("backButton", (data: any) => {
+          // 1. Define your "Root" pages (Home / Main Gallery)
+          const isAtRoot = pathname === "/" || pathname === "/Wholesale/productgallery";
 
-          if (isAtRoot || !data.canGoBack) {
-            // This forces the Android Activity to finish
+          // 2. Logic for exiting vs navigating back
+          if (isAtRoot) {
+            // If we are already on the main page, close the app
             App.exitApp();
           } else {
-            // Otherwise, navigate back in the Next.js stack
+            // If we are on any other page (like product details), 
+            // go back to the previous screen in your app
             window.history.back();
           }
         });
       } catch (err) {
-        console.error("Capacitor Bridge Error:", err);
+        console.error("Capacitor BackButton Error:", err);
       }
     };
 
-    initialize();
+    setup();
 
     return () => {
       if (backListener) backListener.remove();
     };
-  }, [pathname]); // Vital: Re-binds the logic when the route changes
+  }, [pathname]); // This keeps the 'pathname' variable updated for the listener
 
   return null;
 }

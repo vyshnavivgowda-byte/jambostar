@@ -10,30 +10,35 @@ export default function BackButtonHandler() {
     let backListener: any = null;
 
     const setup = async () => {
+      // 1. Double check environment
       if (typeof window === "undefined" || !(window as any).Capacitor) return;
 
       try {
         // @ts-ignore
         const { App } = await import("@capacitor/app");
 
+        // Clear any stuck listeners
         await App.removeAllListeners();
 
-        backListener = await App.addListener("backButton", (data: any) => {
-          // LOGIC: Check if we are on the Home page
-          // Since your server URL starts at /Wholesale/home, 
-          // this is your "Bottom" level.
-          const isAtHome = pathname.includes("/Wholesale/home");
+        backListener = await App.addListener("backButton", () => {
+          /**
+           * HISTORY LOGIC: 
+           * window.history.length > 1 means there are pages to go back to.
+           * !pathname.includes("/home") ensures we don't try to go back from the landing page.
+           */
+          const canGoBackInApp = window.history.length > 1;
+          const isAtHome = pathname === "/" || pathname.includes("/home") || pathname.includes("/Wholesale/home");
 
-          if (isAtHome || !data.canGoBack) {
-            // If on home or no history, close the app
+          if (isAtHome || !canGoBackInApp) {
+            // Exit if at home or no history
             App.exitApp();
           } else {
-            // Otherwise, go back one page
+            // Go back in history
             window.history.back();
           }
         });
       } catch (err) {
-        console.error("Back button setup failed:", err);
+        console.error("Back handler error:", err);
       }
     };
 

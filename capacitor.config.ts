@@ -5,24 +5,15 @@ const config: CapacitorConfig = {
   appName: 'Jumbo Star',
   webDir: 'out',
   server: {
-    // Note: Removed the extra space before 'https'
     url: 'https://jambostar.vercel.app/Wholesale/home', 
-    cleartext: true
-  },
-  android: {
-    // Allows you to inspect the app via chrome://inspect
-    webContentsDebuggingEnabled: true 
+    cleartext: true,
+    // Add this to allow the app to navigate properly on your domain
+    allowNavigation: ['jambostar.vercel.app']
   },
   plugins: {
     App: {
-      // Keep this false so our JavaScript code can handle the exit logic
+      // Must be false so our custom code in Step 1 runs
       disableBackButtonHandler: false 
-    },
-    SplashScreen: {
-      launchShowDuration: 2000,
-      backgroundColor: "#0a0a0b",
-      showSpinner: true,
-      androidScaleType: "CENTER_CROP"
     }
   }
 };

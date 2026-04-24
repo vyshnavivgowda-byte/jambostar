@@ -419,9 +419,9 @@ export default function HomePage() {
                 </span>
               </div>
 
-              <h2 className="text-5xl md:text-7xl font-black text-slate-900 tracking-[-0.05em] leading-[0.9]">
+              <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-[-0.05em] leading-[0.9]">
                 Seasonal
-                <span className="text-red-600  font-serif font-light">Highlights</span>
+                <span className="text-red-600  font-serif font-light">Highlight</span>
               </h2>
 
               <p className="text-slate-400 text-[11px] font-bold uppercase tracking-widest mt-4 flex items-center gap-3">

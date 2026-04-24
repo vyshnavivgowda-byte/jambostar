@@ -1,41 +1,39 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 export default function BackButtonHandler() {
   const pathname = usePathname();
-  const router = useRouter();
 
   useEffect(() => {
     let backListener: any = null;
 
     const setup = async () => {
-      if (typeof window === "undefined") return;
+      if (typeof window === "undefined" || !(window as any).Capacitor) return;
 
       try {
         // @ts-ignore
         const { App } = await import("@capacitor/app");
 
-        // fresh start
         await App.removeAllListeners();
 
         backListener = await App.addListener("backButton", (data: any) => {
-          // 1. Define your "Root" pages (Home / Main Gallery)
-          const isAtRoot = pathname === "/" || pathname === "/Wholesale/productgallery";
+          // LOGIC: Check if we are on the Home page
+          // Since your server URL starts at /Wholesale/home, 
+          // this is your "Bottom" level.
+          const isAtHome = pathname.includes("/Wholesale/home");
 
-          // 2. Logic for exiting vs navigating back
-          if (isAtRoot) {
-            // If we are already on the main page, close the app
+          if (isAtHome || !data.canGoBack) {
+            // If on home or no history, close the app
             App.exitApp();
           } else {
-            // If we are on any other page (like product details), 
-            // go back to the previous screen in your app
+            // Otherwise, go back one page
             window.history.back();
           }
         });
       } catch (err) {
-        console.error("Capacitor BackButton Error:", err);
+        console.error("Back button setup failed:", err);
       }
     };
 
@@ -44,7 +42,7 @@ export default function BackButtonHandler() {
     return () => {
       if (backListener) backListener.remove();
     };
-  }, [pathname]); // This keeps the 'pathname' variable updated for the listener
+  }, [pathname]);
 
   return null;
 }

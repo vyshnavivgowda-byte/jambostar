@@ -1,23 +1,21 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.prashanthischool.app',
-  appName: 'Prashanthi School',
+  appId: 'com.jumbostar.wholesale',
+  appName: 'Jumbo Star',
   webDir: 'out',
   server: {
-    // 1. Ensure no spaces in the URL
-    url: 'https://prashanthi-school-6kow.vercel.app/login', 
+    url: 'https://jambostar.vercel.app/Wholesale/home', 
     cleartext: true,
-    // 2. THIS IS THE FIX: It tells the APK to stay inside the app for this domain
-    allowNavigation: ['prashanthi-school-6kow.vercel.app']
+    // Add this to allow the app to navigate properly on your domain
+    allowNavigation: ['jambostar.vercel.app']
   },
   plugins: {
-    SplashScreen: {
-      launchShowDuration: 2000,
-      backgroundColor: "#ffffff",
-      showSpinner: true,
-      androidScaleType: "CENTER_CROP"
+    App: {
+      // Must be false so our custom code in Step 1 runs
+      disableBackButtonHandler: false 
     }
   }
 };
+
 export default config;
